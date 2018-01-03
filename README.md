@@ -60,8 +60,8 @@ Thanks go to mquander for the excellent "Simplest possible plugin for Janus". ht
 # Compiling and installing
 
 ````shell
-	./bootstrap
-	./configure --prefix=/opt/janus  # or wherever your janus install lives
-	make
-	make install  # installs into {prefix}/lib/janus/plugins
+./bootstrap
+./configure --prefix=/opt/janus  # or wherever your janus install lives
+make
+make install  # installs into {prefix}/lib/janus/plugins
 ````
