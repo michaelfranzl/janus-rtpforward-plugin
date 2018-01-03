@@ -4,10 +4,10 @@ This plugin receives RTP and RTCP packets from a WebRTC connection (Janus Sessio
  
 Four destination UDP addresses/ports are used:
  
-1\. Audio RTP
-2\. Audio RTCP
-3\. Video RTP
-4\. Video RTCP
+1. Audio RTP
+2. Audio RTCP
+3. Video RTP
+4. Video RTCP
 
 There are no config files. All ports/addresses can be configured via the plugin API before a WebRTC session is set up. To configure the plugin, send the following JSON to the plugin:
 
