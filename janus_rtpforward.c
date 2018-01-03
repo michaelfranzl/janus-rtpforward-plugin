@@ -827,11 +827,11 @@ static void *rtpforward_handler_thread(void *data) {
 			janus_sdp *answer = janus_sdp_generate_answer(offer,
 				JANUS_SDP_OA_AUDIO, TRUE,
 				JANUS_SDP_OA_AUDIO_DIRECTION, JANUS_SDP_RECVONLY,
-				JANUS_SDP_OA_AUDIO_CODEC, "OPUS",
+				JANUS_SDP_OA_AUDIO_CODEC, "opus", // "opus", "pcmu", "pcma", "g722", "isac16", "isac32", see sdp-utils.c
 				
 				JANUS_SDP_OA_VIDEO, TRUE,
 				JANUS_SDP_OA_VIDEO_DIRECTION, JANUS_SDP_RECVONLY,
-				JANUS_SDP_OA_VIDEO_CODEC, "VP8", // VP8, VP9, h264
+				JANUS_SDP_OA_VIDEO_CODEC, "vp8", // "vp8", "vp9", "h264", see sdp-utils.c
 				
 				JANUS_SDP_OA_DATA, FALSE,
 				JANUS_SDP_OA_DONE
