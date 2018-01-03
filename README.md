@@ -50,7 +50,7 @@ To experiment how a RTP/RTCP receiver can tolerate packet loss, there are three 
 		"request": "drop_audio_packets",
 		"num": <integer>
 		
-These packet loss simulations are perhaps too simple. They are no replacement for professional network simulation tools which also can generate jitter, packet reordering, packet corruption, etc.).
+These packet loss simulations are perhaps too simple. They are no replacement for professional network simulation tools which also can generate jitter, packet reordering, packet corruption, etc.
 
 # Acknowledgements
 
@@ -64,4 +64,4 @@ Thanks go to mquander for the excellent "Simplest possible plugin for Janus". ht
 	./configure --prefix=/opt/janus  # or wherever your janus install lives
 	make
 	make install  # installs into {prefix}/lib/janus/plugins
-<!-- ```` -->
+````
