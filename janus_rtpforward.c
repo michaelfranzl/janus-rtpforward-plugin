@@ -614,7 +614,7 @@ struct janus_plugin_result *rtpforward_handle_message(janus_plugin_session *hand
 			goto respond;
 			
 			
-		} else if (!strcmp(request_text, "bitrate")) {
+		} else if (!strcmp(request_text, "remb")) {
 			uint32_t bitrate = (uint32_t)json_integer_value(json_object_get(body, "bitrate"));
 			if (bitrate) {
 				char buf[32]; // more than needed

@@ -30,7 +30,7 @@ To send to the browser a Full Intraframe request packet (FIR), send the followin
 		
 To send to the browser a Receiver Estimated Maximum Bitrate packet (REMB), send the following API request (note that depending on the video codec used, Firefox can currently go only as low as 200000, and Chrome can go as low as 50000):
 		
-		"request": "bitrate",
+		"request": "remb",
 		"bitrate": <integer in bits per second>
 
 To experiment how a RTP/RTCP receiver can tolerate packet loss, there are three API requests:
