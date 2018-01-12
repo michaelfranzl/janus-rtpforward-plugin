@@ -39,7 +39,7 @@
 #include "utils.h"
 
 #define RTPFORWARD_VERSION 1
-#define RTPFORWARD_VERSION_STRING	"0.2.0"
+#define RTPFORWARD_VERSION_STRING	"0.2.1"
 #define RTPFORWARD_DESCRIPTION "Forwards RTP and RTCP to an external UDP receiver/decoder"
 #define RTPFORWARD_NAME "rtpforward"
 #define RTPFORWARD_AUTHOR	"Michael Karl Franzl"
