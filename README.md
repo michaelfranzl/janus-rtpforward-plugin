@@ -1,6 +1,6 @@
 # Janus rtpforward plugin
 
-This plugin for the [Janus WebRTC gateway](https://github.com/meetecho/janus-gateway) takes RTP and RTCP packets from a WebRTC connection (Janus Session) and forwards/sends them to UDP ports for further processing or display by an external receiver/decoder (e.g. a GStreamer pipeline). UDP broadcast and multicast is implicitly supported by setting the `sendipv4` to broadcast or multicast IP addresses.
+This plugin for the [Janus WebRTC gateway](https://github.com/meetecho/janus-gateway) takes RTP and RTCP packets from a WebRTC connection (Janus Session) and forwards/sends them to UDP ports for further processing or display by an external receiver/decoder (e.g. a GStreamer pipeline).
 
 Four destination UDP addresses/ports are used:
  
@@ -56,10 +56,14 @@ These packet loss simulations are perhaps too simple. They are no replacement fo
 
 This plugin only accepts VP8 and OPUS in RECVONLY mode. This is hardcoded via arguments to the `janus_sdp_generate_answer()` function, but can be changed easily (see comments there).
 
+# UDP broadcast/multicast
+
+UDP broadcast and multicast is implicitly supported by configuring the `sendipv4` to broadcast or multicast IP addresses (strictly speaking, this is just a feature of the socket or OS, not a feature of this plugin). If a multicast IP address is detected, as a security precaution, the plugin will set the `IP_MULTICAST_TTL` option of the sending socket to 0 (zero) which SHOULD cause at least the first router (the Linux kernel) to NOT forward the UDP packets to any other network (the packets SHOULD be accessible only on the same machine). This behavior is however OS-specific. **When configuring a multicast IP address, you SHOULD verify that the UDP packets are not inadvertenly forwarded into networks where the security/privacy of the packets could be compromised, or into networks where congestion or bandwidth need to be observed. If in doubt, do NOT configure this plugin with multicast IP addresses!**
+
 
 # Use cases
 
-Note: The following two use cases use the UDP multicast IP address 225.0.0.37 (which is in a group of multicast addresses not routed, i.e. only working on the same machine). This enables multiple subscribers to the same RTP stream, for maximum flexibility.
+Note: The following two use cases use the UDP multicast IP address 225.0.0.37. This enables multiple subscribers to the same RTP stream, for maximum flexibility.
 
 ## GStreamer display
 

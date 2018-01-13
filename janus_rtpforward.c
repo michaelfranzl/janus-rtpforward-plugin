@@ -25,6 +25,9 @@
 #include <plugins/plugin.h>
 #include <debug.h>
 
+#include <netinet/in.h>
+#include <sys/socket.h>
+
 #include <poll.h>
 
 #include "debug.h"
@@ -39,7 +42,7 @@
 #include "utils.h"
 
 #define RTPFORWARD_VERSION 1
-#define RTPFORWARD_VERSION_STRING	"0.2.1"
+#define RTPFORWARD_VERSION_STRING	"0.2.2"
 #define RTPFORWARD_DESCRIPTION "Forwards RTP and RTCP to an external UDP receiver/decoder"
 #define RTPFORWARD_NAME "rtpforward"
 #define RTPFORWARD_AUTHOR	"Michael Karl Franzl"
@@ -504,13 +507,32 @@ struct janus_plugin_result *rtpforward_handle_message(janus_plugin_session *hand
 			}
 			
 			// create the SEND socket
-			if (session->sendsockfd < 0) {
-				session->sendsockfd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
-				if (session->sendsockfd < 0) { // still?
+			if (session->sendsockfd < 0) { // only once
+				session->sendsockfd = socket(AF_INET, SOCK_DGRAM, 0);
+				if (session->sendsockfd < 0) { // error
 					JANUS_LOG(LOG_ERR, "%s Could not create sending socket\n", RTPFORWARD_NAME);
-					error_code = 99; // TODO define
+					error_code = 99; // TODO: define this
 					g_snprintf(error_cause, 512, "Could not create sending socket");
 					goto respond;
+				}
+				
+				if (IN_MULTICAST(ntohl(inet_addr(sendipv4)))) {
+					u_int ttl = 0; // do not route UDP packets outside of local host
+					setsockopt(session->sendsockfd, IPPROTO_IP, IP_MULTICAST_TTL, &ttl, sizeof(ttl));
+					
+					struct in_addr mcast_iface_addr;
+					mcast_iface_addr.s_addr = htonl(INADDR_LOOPBACK); // same as inet_addr("127.0.0.1");
+					
+					JANUS_LOG(LOG_WARN, "%s: This rtpforward session will multicast to IP multicast address %s "
+					"because you specified it. The IP_MULTICAST_TTL option has been set to 0 (zero), which "
+					"SHOULD cause at least the first router (the Linux kernel) to NOT forward the UDP packets. "
+					"The behavior is is however OS-specific. You SHOULD verify that the UDP packets "
+					"are not inadvertenly forwarded into network zones where the security/privacy of the packets "
+					"could be compromised.\n", RTPFORWARD_NAME, inet_ntoa(session->sendsockaddr.sin_addr));
+					
+					JANUS_LOG(LOG_WARN, "%s: Will multicast from network interface with IP %s\n", RTPFORWARD_NAME, inet_ntoa(mcast_iface_addr));
+					
+					setsockopt(session->sendsockfd, IPPROTO_IP, IP_MULTICAST_IF, &mcast_iface_addr, sizeof(mcast_iface_addr));
 				}
 			}
 			
@@ -539,7 +561,7 @@ struct janus_plugin_result *rtpforward_handle_message(janus_plugin_session *hand
 			
 			// create the RECEIVE socket for audio RTCP
 			if (session->recvsockfd_audio_rtcp < 0) {
-				session->recvsockfd_audio_rtcp = socket(AF_INET, SOCK_DGRAM, 0); // TODO: IPPROTO_UDP???
+				session->recvsockfd_audio_rtcp = socket(AF_INET, SOCK_DGRAM, 0);
 				if(session->recvsockfd_audio_rtcp < 0) { // still?
 					JANUS_LOG(LOG_ERR, "%s Could create listening socket for audio RTCP...\n", RTPFORWARD_NAME);
 					error_code = 99; // TODO define
@@ -550,7 +572,7 @@ struct janus_plugin_result *rtpforward_handle_message(janus_plugin_session *hand
 			
 			// create the RECEIVE socket for video RTCP
 			if (session->recvsockfd_video_rtcp < 0) {
-				session->recvsockfd_video_rtcp = socket(AF_INET, SOCK_DGRAM, 0); // TODO: IPPROTO_UDP???
+				session->recvsockfd_video_rtcp = socket(AF_INET, SOCK_DGRAM, 0);
 				if(session->recvsockfd_video_rtcp < 0) { // still?
 					JANUS_LOG(LOG_ERR, "%s Could create listening socket for video RTCP...\n", RTPFORWARD_NAME);
 					error_code = 99; // TODO define
@@ -559,10 +581,10 @@ struct janus_plugin_result *rtpforward_handle_message(janus_plugin_session *hand
 				}
 			}
 			
-			session->recvsockaddr_audio_rtcp.sin_addr.s_addr = INADDR_ANY; // inet_addr("127.0.0.1"); // htonl(INADDR_ANY)
+			session->recvsockaddr_audio_rtcp.sin_addr.s_addr = INADDR_ANY;
 			session->recvsockaddr_audio_rtcp.sin_port = htons(session->recvport_audio_rtcp);
 			
-			session->recvsockaddr_video_rtcp.sin_addr.s_addr = INADDR_ANY; //inet_addr("127.0.0.1");
+			session->recvsockaddr_video_rtcp.sin_addr.s_addr = INADDR_ANY;
 			session->recvsockaddr_video_rtcp.sin_port = htons(session->recvport_video_rtcp);
 			
 			// TODO: protect against multiple runs of configure
