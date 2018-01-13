@@ -58,7 +58,9 @@ This plugin only accepts VP8 and OPUS in RECVONLY mode. This is hardcoded via ar
 
 # UDP broadcast/multicast
 
-UDP broadcast and multicast is implicitly supported by configuring the `sendipv4` to broadcast or multicast IP addresses (strictly speaking, this is just a feature of the socket or OS, not a feature of this plugin). If a multicast IP address is detected, as a security precaution, the plugin will set the `IP_MULTICAST_TTL` option of the sending socket to 0 (zero) which SHOULD cause at least the first router (the Linux kernel) to NOT forward the UDP packets to any other network (the packets SHOULD be accessible only on the same machine). This behavior is however OS-specific. **When configuring a multicast IP address, you SHOULD verify that the UDP packets are not inadvertenly forwarded into networks where the security/privacy of the packets could be compromised, or into networks where congestion or bandwidth need to be observed. If in doubt, do NOT configure this plugin with multicast IP addresses!**
+UDP broadcast and multicast is implicitly supported by configuring the `sendipv4` to broadcast or multicast IP addresses (strictly speaking, this is just a feature of the socket or OS, not a feature of this plugin). If a multicast IP address is detected, as a security precaution, the plugin will set the `IP_MULTICAST_TTL` option of the sending socket to 0 (zero) which SHOULD cause at least the first router (the Linux kernel) to NOT forward the UDP packets to any other network (the packets SHOULD be accessible only on the same machine). This behavior is however OS-specific. **When configuring a multicast IP address, you SHOULD verify that the UDP packets are not inadvertenly forwarded into networks where the security/privacy of the packets could be compromised, or into networks where congestion or bandwidth need to be observed. In the worst case, the UDP packets could be forwarded to large sections of the internet. As a last resort, you should configure your firewall to drop the packets. If in doubt, do NOT configure this plugin with multicast IP addresses! It is safest to simply use 127.0.0.1.**
+
+In addition, if a multicast IP address is detected, the plugin will set the network interface to be used to the software loopback interface (via the `INADDR_LOOPBACK` constant, which should be "127.0.0.1") for lowest latency. If we don't do this, then the OS may choose a network interface for us, and a physical ethernet card could add latency. UDP multicast receivers may have to set the interface to the same (in below GStreamer examples, this is achieved via the `multicast-iface=lo` option to `udpsrc`).
 
 
 # Use cases
@@ -78,10 +80,10 @@ Note that you can lauch the same pipeline several times when you're multicasting
 ````shell
 gst-launch-1.0 -v \
 rtpbin name=rtpbin latency=100 \
-udpsrc address=225.0.0.37 auto-multicast=true port=60000 caps="application/x-rtp, media=audio, payload=111, encoding-name=OPUS, clock-rate=48000" ! rtpbin.recv_rtp_sink_0 \
-udpsrc address=225.0.0.37 auto-multicast=true port=60001 caps="application/x-rtcp" ! rtpbin.recv_rtcp_sink_0 \
-udpsrc address=225.0.0.37 auto-multicast=true port=60002 caps="application/x-rtp, media=video, payload=96, encoding-name=VP8, clock-rate=90000" ! rtpbin.recv_rtp_sink_1 \
-udpsrc address=225.0.0.37 auto-multicast=true port=60003 caps="application/x-rtcp" ! rtpbin.recv_rtcp_sink_1 \
+udpsrc address=225.0.0.37 auto-multicast=true multicast-iface=lo port=60000 caps="application/x-rtp, media=audio, payload=111, encoding-name=OPUS, clock-rate=48000" ! rtpbin.recv_rtp_sink_0 \
+udpsrc address=225.0.0.37 auto-multicast=true multicast-iface=lo port=60001 caps="application/x-rtcp" ! rtpbin.recv_rtcp_sink_0 \
+udpsrc address=225.0.0.37 auto-multicast=true multicast-iface=lo port=60002 caps="application/x-rtp, media=video, payload=96, encoding-name=VP8, clock-rate=90000" ! rtpbin.recv_rtp_sink_1 \
+udpsrc address=225.0.0.37 auto-multicast=true multicast-iface=lo port=60003 caps="application/x-rtcp" ! rtpbin.recv_rtcp_sink_1 \
 rtpbin. ! rtpvp8depay ! vp8dec ! autovideosink \
 rtpbin. ! rtpopusdepay ! queue ! opusdec ! pulsesink
 ````
@@ -96,10 +98,10 @@ The following GStreamer pipeline simply dumps the synchronized (by `rtpbin`) and
 gst-launch-1.0 -v -e \
 matroskamux name=mux streamable=1 ! filesink location=/tmp/dump.mkv \
 rtpbin name=rtpbin latency=100 \
-udpsrc address=225.0.0.37 auto-multicast=true port=60000 caps="application/x-rtp, media=audio, payload=111, encoding-name=OPUS, clock-rate=48000" ! rtpbin.recv_rtp_sink_0 \
-udpsrc address=225.0.0.37 auto-multicast=true port=60001 caps="application/x-rtcp" ! rtpbin.recv_rtcp_sink_0 \
-udpsrc address=225.0.0.37 auto-multicast=true port=60002 caps="application/x-rtp, media=video, payload=96, encoding-name=VP8, clock-rate=90000" ! rtpbin.recv_rtp_sink_1 \
-udpsrc address=225.0.0.37 auto-multicast=true port=60003 caps="application/x-rtcp" ! rtpbin.recv_rtcp_sink_1 \
+udpsrc address=225.0.0.37 auto-multicast=true multicast-iface=lo port=60000 caps="application/x-rtp, media=audio, payload=111, encoding-name=OPUS, clock-rate=48000" ! rtpbin.recv_rtp_sink_0 \
+udpsrc address=225.0.0.37 auto-multicast=true multicast-iface=lo port=60001 caps="application/x-rtcp" ! rtpbin.recv_rtcp_sink_0 \
+udpsrc address=225.0.0.37 auto-multicast=true multicast-iface=lo port=60002 caps="application/x-rtp, media=video, payload=96, encoding-name=VP8, clock-rate=90000" ! rtpbin.recv_rtp_sink_1 \
+udpsrc address=225.0.0.37 auto-multicast=true multicast-iface=lo port=60003 caps="application/x-rtcp" ! rtpbin.recv_rtcp_sink_1 \
 rtpbin. ! rtpopusdepay ! mux.audio_0 \
 rtpbin. ! rtpvp8depay ! mux.video_0
 ````

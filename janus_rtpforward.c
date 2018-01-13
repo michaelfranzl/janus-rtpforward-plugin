@@ -521,7 +521,9 @@ struct janus_plugin_result *rtpforward_handle_message(janus_plugin_session *hand
 					setsockopt(session->sendsockfd, IPPROTO_IP, IP_MULTICAST_TTL, &ttl, sizeof(ttl));
 					
 					struct in_addr mcast_iface_addr;
-					mcast_iface_addr.s_addr = htonl(INADDR_LOOPBACK); // same as inet_addr("127.0.0.1");
+					// We explicitly choose the multicast network interface, otherwise the kernel will choose for us.
+					// We go for the software loopback interface for low latency. A physical ethernet card could add latency.
+					mcast_iface_addr.s_addr = htonl(INADDR_LOOPBACK);
 					
 					JANUS_LOG(LOG_WARN, "%s: This rtpforward session will multicast to IP multicast address %s "
 					"because you specified it. The IP_MULTICAST_TTL option has been set to 0 (zero), which "
