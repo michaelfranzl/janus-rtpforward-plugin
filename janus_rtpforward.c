@@ -35,7 +35,6 @@
 #include "config.h"
 #include "mutex.h"
 
-#include "record.h"
 #include "rtp.h"
 #include "rtcp.h"
 #include "sdp-utils.h"
@@ -149,6 +148,8 @@ typedef struct rtpforward_session {
 	uint16_t drop_permille;
 	uint16_t drop_video_packets;
 	uint16_t drop_audio_packets;
+	int video_enabled;
+	int audio_enabled;
 	janus_rtp_switching_context context;
 	volatile gint hangingup;
 	gint64 destroyed;	/* Time at which this session was marked as destroyed */
@@ -344,6 +345,9 @@ void rtpforward_create_session(janus_plugin_session *handle, int *error) {
 	session->sendsockfd = -1;
 	session->sendsockaddr = (struct sockaddr_in){ .sin_family = AF_INET };
 	
+	session->video_enabled = 1;
+	session->audio_enabled = 1;
+	
 #ifdef FORWARD_FEEDBACK
 	session->recvport_video_rtcp = 0;
 	session->recvport_audio_rtcp = 0;
@@ -360,6 +364,7 @@ void rtpforward_create_session(janus_plugin_session *handle, int *error) {
 	session->drop_permille = 0;
 	session->drop_video_packets = 0;
 	session->drop_audio_packets = 0;
+	
 	
 	session->destroyed = 0;
 	
@@ -447,6 +452,26 @@ struct janus_plugin_result *rtpforward_handle_message(janus_plugin_session *hand
 			uint16_t num = (uint16_t)json_integer_value(json_object_get(body, "num"));
 			JANUS_LOG(LOG_INFO, "%s Will drop %d audio packets\n", RTPFORWARD_NAME, num);
 			session->drop_audio_packets = num;
+		}
+		
+		if(!strcmp(request_text, "video_enable")) {
+			JANUS_LOG(LOG_INFO, "%s Enabling video\n", RTPFORWARD_NAME);
+			session->video_enabled = 1;
+		}
+		
+		if(!strcmp(request_text, "video_disable")) {
+			JANUS_LOG(LOG_INFO, "%s Disabling video\n", RTPFORWARD_NAME);
+			session->video_enabled = 0;
+		}
+		
+		if(!strcmp(request_text, "audio_enable")) {
+			JANUS_LOG(LOG_INFO, "%s Enabling audio\n", RTPFORWARD_NAME);
+			session->audio_enabled = 1;
+		}
+		
+		if(!strcmp(request_text, "audio_disable")) {
+			JANUS_LOG(LOG_INFO, "%s Disabling audio\n", RTPFORWARD_NAME);
+			session->audio_enabled = 0;
 		}
 		
 		if(!strcmp(request_text, "configure")) {
@@ -712,24 +737,26 @@ void rtpforward_incoming_rtp(janus_plugin_session *handle, int video, char *buf,
 	struct sockaddr_in addr = session->sendsockaddr;
 	socklen_t addrlen = sizeof(struct sockaddr_in);
 	
-	if (session->drop_permille > g_random_int_range(0,1000)) {
-		// simulate bad connection
-		return;
-	}
+	if (session->drop_permille > g_random_int_range(0,1000))
+		return; // simulate bad connection
 	
 	if (video) {
-		addr.sin_port = htons(session->sendport_video_rtp);
 		if (session->drop_video_packets > 0) {
 			session->drop_video_packets--;
 			return;
 		}
+		if (!session->video_enabled)
+			return;
+		addr.sin_port = htons(session->sendport_video_rtp);
 		
 	} else {
-		addr.sin_port = htons(session->sendport_audio_rtp);
 		if (session->drop_audio_packets > 0) {
 			session->drop_audio_packets--;
 			return;
 		}
+		if (!session->audio_enabled)
+			return;
+		addr.sin_port = htons(session->sendport_audio_rtp);
 	}
 	int numsent = sendto(session->sendsockfd, buf, len, 0, (struct sockaddr*)&addr, addrlen);
 }
