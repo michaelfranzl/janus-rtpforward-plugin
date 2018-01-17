@@ -1,6 +1,6 @@
 # Janus rtpforward plugin
 
-This plugin for the [Janus WebRTC gateway](https://github.com/meetecho/janus-gateway) takes RTP and RTCP packets from a WebRTC connection (Janus Session) and forwards/sends them to UDP ports for further processing or display by an external receiver/decoder (e.g. a GStreamer pipeline).
+This plugin for the [Janus WebRTC gateway](https://github.com/meetecho/janus-gateway) (tested with revision dc81819 [2017-12-04]) takes RTP and RTCP packets from a WebRTC connection (Janus Session) and forwards/sends them to UDP ports for further processing or display by an external receiver/decoder (e.g. a GStreamer pipeline).
 
 Four destination UDP addresses/ports are used:
  
@@ -9,7 +9,9 @@ Four destination UDP addresses/ports are used:
 3. Video RTP
 4. Video RTCP
 
-There are no configuration files. All ports/addresses can be configured via the plugin API on a per-session basis. To configure a plugin session, send the following JSON:
+## API
+
+There are no configuration files. All ports/addresses can be configured via the plugin API on a per-session basis. To configure a plugin session, send the following payload (ideally before the first WebRTC RTP packet comes in, but can be later than that):
 
 		"request": "configure",
 		"sendipv4": "127.0.0.1",
@@ -20,41 +22,54 @@ There are no configuration files. All ports/addresses can be configured via the 
 		
 For now, only IPv4 addresses are supported.
 
-To send to the browser a Picture Loss Indication packet (PLI), send the following API request:
+To send to the browser a Picture Loss Indication packet (PLI), send the following payload:
 		
 		"request": "pli"
 		
-To send to the browser a Full Intraframe request packet (FIR), send the following API request:
+To send to the browser a Full Intraframe request packet (FIR), send the following payload:
 		
 		"request": "fir"
 		
-To send to the browser a Receiver Estimated Maximum Bitrate packet (REMB), send the following API request (note that depending on the video codec used, Firefox can currently go only as low as 200000, whereas Chrome can go as low as 50000):
+To send to the browser a Receiver Estimated Maximum Bitrate packet (REMB), send the following payload (note that depending on the video codec used, Firefox can currently go only as low as 200000, whereas Chrome can go as low as 50000):
 		
 		"request": "remb",
 		"bitrate": <integer in bits per second>
 
-To experiment how a RTP/RTCP receiver can tolerate packet loss, there are three API requests:
+To enable or disable forwarding of audio packets, send the following payload:
+
+		"audio_enabled": true|false
+
+To enable or disable forwarding of video packets, send the following payload:
+
+		"video_enabled": true|false
+
+To auto-enable video forwarding at the next keyframe, send the following payload:
+
+		"enable_video_on_keyframe": true
+
+### Packet loss simulation
+
+To experiment how a downstream RTP/RTCP receiver can tolerate packet loss, there are three API requests:
 
 `drop_probability` configures the uniformly random drop of a number of packages in parts per 1000:
 
-		"request": "drop_probability",
-		"drop_permille": <integer between 0 and 1000>
-		
+		"drop_probability": <integer between 0 and 1000>
+
 `drop_video_packets` tells the plugin to drop the given number of next video RTP packets, then resume normal forwarding:
-		
-		"request": "drop_video_packets",
-		"num": <integer>
-		
+
+		"drop_video_packets": <integer>
+
 `drop_audio_packets` tells the plugin to drop the given number of next audio RTP packets, then resume normal forwarding:
-		
-		"request": "drop_audio_packets",
-		"num": <integer>
-		
-These packet loss simulations are perhaps too simple. They are no replacement for professional network simulation tools which also can generate jitter, packet reordering, packet corruption, etc.
+
+		"drop_audio_packets": <integer>
+
+These packet loss simulations are very simple and do not reflect real networks, but they may be useful for debugging.
+
 
 # Limitations
 
 This plugin only accepts VP8 and OPUS in RECVONLY mode. This is hardcoded via arguments to the `janus_sdp_generate_answer()` function, but can be changed easily (see comments there).
+
 
 # UDP broadcast/multicast
 

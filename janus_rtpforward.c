@@ -148,8 +148,9 @@ typedef struct rtpforward_session {
 	uint16_t drop_permille;
 	uint16_t drop_video_packets;
 	uint16_t drop_audio_packets;
-	int video_enabled;
-	int audio_enabled;
+	gboolean video_enabled;
+	gboolean audio_enabled;
+	gboolean enable_video_on_keyframe;
 	janus_rtp_switching_context context;
 	volatile gint hangingup;
 	gint64 destroyed;	/* Time at which this session was marked as destroyed */
@@ -345,8 +346,9 @@ void rtpforward_create_session(janus_plugin_session *handle, int *error) {
 	session->sendsockfd = -1;
 	session->sendsockaddr = (struct sockaddr_in){ .sin_family = AF_INET };
 	
-	session->video_enabled = 1;
-	session->audio_enabled = 1;
+	session->video_enabled = TRUE;
+	session->audio_enabled = TRUE;
+	session->enable_video_on_keyframe = FALSE;
 	
 #ifdef FORWARD_FEEDBACK
 	session->recvport_video_rtcp = 0;
@@ -430,49 +432,46 @@ struct janus_plugin_result *rtpforward_handle_message(janus_plugin_session *hand
 	char *error_cause = g_malloc0(512);
 	json_t *response = NULL;
 	
+	json_t *enable_video_on_keyframe = json_object_get(body, "enable_video_on_keyframe");
+	if (enable_video_on_keyframe) {
+		session->enable_video_on_keyframe = (gboolean)json_boolean_value(enable_video_on_keyframe);
+		JANUS_LOG(LOG_INFO, "%s session->enable_video_on_keyframe %s\n", RTPFORWARD_NAME, (session->enable_video_on_keyframe ? "TRUE" : "FALSE"));
+	}
+	
+	json_t *drop_probability = json_object_get(body, "drop_probability");
+	if (drop_probability) {
+		session->drop_permille = (uint16_t)json_integer_value(drop_probability);
+		JANUS_LOG(LOG_INFO, "%s session->drop_permille=%d\n", RTPFORWARD_NAME, session->drop_permille);
+	}
+	
+	json_t *drop_video_packets = json_object_get(body, "drop_video_packets");
+	if (drop_video_packets) {
+		session->drop_video_packets = (uint16_t)json_integer_value(drop_video_packets);
+		JANUS_LOG(LOG_INFO, "%s session->drop_video_packets=%d\n", RTPFORWARD_NAME, session->drop_video_packets);
+	}
+	
+	json_t *drop_audio_packets = json_object_get(body, "drop_audio_packets");
+	if (drop_audio_packets) {
+		session->drop_audio_packets = (uint16_t)json_integer_value(drop_audio_packets);
+		JANUS_LOG(LOG_INFO, "%s session->drop_audio_packets=%d\n", RTPFORWARD_NAME, session->drop_audio_packets);
+	}
+	
+	json_t *video_enabled = json_object_get(body, "video_enabled");
+	if (video_enabled) {
+		session->video_enabled = (gboolean)json_boolean_value(video_enabled);
+		JANUS_LOG(LOG_INFO, "%s session->video_enabled=%s\n", RTPFORWARD_NAME, session->video_enabled ? "TRUE" : "FALSE");
+	}
+	
+	json_t *audio_enabled = json_object_get(body, "audio_enabled");
+	if (audio_enabled) {
+		session->audio_enabled = (gboolean)json_boolean_value(audio_enabled);
+		JANUS_LOG(LOG_INFO, "%s session->audio_enabled=%s\n", RTPFORWARD_NAME, session->audio_enabled ? "TRUE" : "FALSE");
+	}
 	
 	
 	json_t *request = json_object_get(body, "request");
 	if (request) {
 		const char *request_text = json_string_value(request);
-		
-		if(!strcmp(request_text, "drop_probability")) {
-			uint16_t drop_permille = (uint16_t)json_integer_value(json_object_get(body, "drop_permille"));
-			JANUS_LOG(LOG_INFO, "%s Will drop %d\% of all packets\n", RTPFORWARD_NAME, drop_permille);
-			session->drop_permille = drop_permille;
-		}
-		
-		if(!strcmp(request_text, "drop_video_packets")) {
-			uint16_t num = (uint16_t)json_integer_value(json_object_get(body, "num"));
-			JANUS_LOG(LOG_INFO, "%s Will drop %d video packets\n", RTPFORWARD_NAME, num);
-			session->drop_video_packets = num;
-		}
-		
-		if(!strcmp(request_text, "drop_audio_packets")) {
-			uint16_t num = (uint16_t)json_integer_value(json_object_get(body, "num"));
-			JANUS_LOG(LOG_INFO, "%s Will drop %d audio packets\n", RTPFORWARD_NAME, num);
-			session->drop_audio_packets = num;
-		}
-		
-		if(!strcmp(request_text, "video_enable")) {
-			JANUS_LOG(LOG_INFO, "%s Enabling video\n", RTPFORWARD_NAME);
-			session->video_enabled = 1;
-		}
-		
-		if(!strcmp(request_text, "video_disable")) {
-			JANUS_LOG(LOG_INFO, "%s Disabling video\n", RTPFORWARD_NAME);
-			session->video_enabled = 0;
-		}
-		
-		if(!strcmp(request_text, "audio_enable")) {
-			JANUS_LOG(LOG_INFO, "%s Enabling audio\n", RTPFORWARD_NAME);
-			session->audio_enabled = 1;
-		}
-		
-		if(!strcmp(request_text, "audio_disable")) {
-			JANUS_LOG(LOG_INFO, "%s Disabling audio\n", RTPFORWARD_NAME);
-			session->audio_enabled = 0;
-		}
 		
 		if(!strcmp(request_text, "configure")) {
 			
@@ -741,6 +740,16 @@ void rtpforward_incoming_rtp(janus_plugin_session *handle, int video, char *buf,
 		return; // simulate bad connection
 	
 	if (video) {
+		gboolean is_keyframe = janus_vp8_is_keyframe(buf, len);
+		
+		if (is_keyframe) {
+			JANUS_LOG(LOG_INFO, "%s Received keyframe.\n", RTPFORWARD_NAME);
+			
+			if (session->enable_video_on_keyframe) {
+				session->video_enabled = TRUE;
+			}
+		}
+		
 		if (session->drop_video_packets > 0) {
 			session->drop_video_packets--;
 			return;
