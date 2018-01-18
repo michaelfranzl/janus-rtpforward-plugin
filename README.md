@@ -11,16 +11,22 @@ Four destination UDP addresses/ports are used:
 
 ## API
 
-There are no configuration files. All ports/addresses can be configured via the plugin API on a per-session basis. To configure a plugin session, send the following payload (ideally before the first WebRTC RTP packet comes in, but can be later than that):
+There are no configuration files. All ports/addresses can be configured via the plugin API on a per-session basis. To configure a plugin session, send the following payload (before sending the JSEP offer):
 
 		"request": "configure",
 		"sendipv4": "127.0.0.1",
 		"sendport_audio_rtp": 60000,
 		"sendport_audio_rtcp": 60001,
 		"sendport_video_rtp": 60002,
-		"sendport_video_rtcp": 60003
-		
-For now, only IPv4 addresses are supported.
+		"sendport_video_rtcp": 60003,
+		"offer_acodec": "opus",
+		"offer_vcodec": "vp8"
+
+All `send*` keys are required and specify the target UDP ports/addresses. This plugin simply uses the `sendto()` system call. For now, only an IPv4 target address is supported.
+
+The `offer*` keys are optional and specify which codecs should be used in the JSEP answer of Janus.
+
+## Browser requests
 
 To send to the browser a Picture Loss Indication packet (PLI), send the following payload:
 		
@@ -30,7 +36,7 @@ To send to the browser a Full Intraframe request packet (FIR), send the followin
 		
 		"request": "fir"
 		
-To send to the browser a Receiver Estimated Maximum Bitrate packet (REMB), send the following payload (note that depending on the video codec used, Firefox can currently go only as low as 200000, whereas Chrome can go as low as 50000):
+To send to the browser a Receiver Estimated Maximum Bitrate packet (REMB), send the following payload. Note that depending on the video codec used, different browsers cannot go lower than 30 to 200 kbits/sec.
 		
 		"request": "remb",
 		"bitrate": <integer in bits per second>
@@ -46,6 +52,7 @@ To enable or disable forwarding of video packets, send the following payload:
 To auto-enable video forwarding at the next keyframe, send the following payload:
 
 		"enable_video_on_keyframe": true
+
 
 ### Packet loss simulation
 
