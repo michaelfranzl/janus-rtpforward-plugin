@@ -24,7 +24,7 @@ There are no configuration files. All ports/addresses can be configured via the 
 
 All `send*` keys are required and specify the target UDP ports/addresses. This plugin simply uses the `sendto()` system call. For now, only an IPv4 target address is supported.
 
-The `offer*` keys are optional and specify which codecs should be used in the JSEP answer of Janus. The defaults are `"opus"` and `"vp8"`.
+The `offer*` keys are optional and specify which codecs should be used in the JSEP coming from Janus. The defaults are `"opus"` and `"vp8"`.
 
 ## Browser requests
 

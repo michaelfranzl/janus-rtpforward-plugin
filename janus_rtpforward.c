@@ -9,18 +9,6 @@
  * \details See README.md
 */
 
-/*
- * Forwarding (to the browser) of incoming RTCP feedback (originating from the
- * decoder receiving the forwarded packets) is experimental, and needs more
- * thinking and work.
- * 
- * In particular, Janus filters RTCP packets from plugins, plus the SSRC IDs
- * may not match between decoder and browser.
- * 
- * Disabled for now.
- */
-//#define FORWARD_FEEDBACK
-
 #include <jansson.h>
 #include <plugins/plugin.h>
 #include <debug.h>
@@ -98,16 +86,12 @@ janus_plugin *create(void) {
 	return &rtpforward_plugin;
 }
 
-
 static volatile gint initialized = 0, stopping = 0;
 static janus_callbacks *gateway = NULL;
 static GThread *handler_thread;
 static GThread *watchdog_thread;
 
 static void *rtpforward_handler_thread(void *data);
-#ifdef FORWARD_FEEDBACK
-static void *rtpforward_session_relay_thread(void *data);
-#endif
 static void rtpforward_hangup_media_internal(janus_plugin_session *handle);
 
 
@@ -138,31 +122,19 @@ typedef struct rtpforward_session {
 	guint16 sendport_video_rtcp;
 	guint16 sendport_audio_rtp;
 	guint16 sendport_audio_rtcp;
-	int sendsockfd; // one socket for sento() several ports is enough
-	struct sockaddr_in sendsockaddr;
-	
-#ifdef FORWARD_FEEDBACK
-	guint16 recvport_video_rtcp;
-	guint16 recvport_audio_rtcp;
-	int recvsockfd_video_rtcp;
-	int recvsockfd_audio_rtcp;
-	struct sockaddr_in recvsockaddr_video_rtcp;
-	struct sockaddr_in recvsockaddr_audio_rtcp;
-#endif
-	
-	rtpforward_video_codec vcodec;
-	
-	// codecs for SDP answer (via API)
-	char offer_acodec[RTPFORWARD_CODEC_STR_LEN];
-	char offer_vcodec[RTPFORWARD_CODEC_STR_LEN];
-	
-	int fir_seqnr;
-	
 	guint16 seqnr_video_last; // to keep track of lost packets
-	
 	guint16 drop_permille;
 	guint16 drop_video_packets;
 	guint16 drop_audio_packets;
+	
+	int fir_seqnr;
+	int sendsockfd; // one socket for sento() several ports is enough
+	struct sockaddr_in sendsockaddr;
+	
+	rtpforward_video_codec vcodec;
+	
+	char offer_acodec[RTPFORWARD_CODEC_STR_LEN];
+	char offer_vcodec[RTPFORWARD_CODEC_STR_LEN];
 	
 	gboolean video_enabled;
 	gboolean audio_enabled;
@@ -373,17 +345,6 @@ void rtpforward_create_session(janus_plugin_session *handle, int *error) {
 	session->disable_video_on_packetloss = FALSE;
 	
 	session->seqnr_video_last = 0;
-	
-#ifdef FORWARD_FEEDBACK
-	session->recvport_video_rtcp = 0;
-	session->recvport_audio_rtcp = 0;
-	
-	session->recvsockfd_video_rtcp = -1;
-	session->recvsockfd_audio_rtcp = -1;
-	
-	session->recvsockaddr_video_rtcp = (struct sockaddr_in){ .sin_family = AF_INET };
-	session->recvsockaddr_audio_rtcp = (struct sockaddr_in){ .sin_family = AF_INET };
-#endif
 	
 	session->fir_seqnr = 0;
 	
@@ -626,94 +587,6 @@ struct janus_plugin_result *rtpforward_handle_message(janus_plugin_session *hand
 				
 				setsockopt(session->sendsockfd, IPPROTO_IP, IP_MULTICAST_IF, &mcast_iface_addr, sizeof(mcast_iface_addr));
 			}
-			
-#ifdef FORWARD_FEEDBACK
-			guint16 recvport_audio_rtcp = (guint16)json_integer_value(json_object_get(body, "recvport_audio_rtcp"));
-			if (recvport_audio_rtcp) {
-				JANUS_LOG(LOG_INFO, "%s Will read audio RTCP from port %d\n", RTPFORWARD_NAME, recvport_audio_rtcp);
-				session->recvport_audio_rtcp = recvport_audio_rtcp;
-			} else {
-				JANUS_LOG(LOG_ERR, "%s JSON error: Missing element: recvport_audio_rtcp\n", RTPFORWARD_NAME);
-				error_code = RTPFORWARD_ERROR_MISSING_ELEMENT;
-				g_snprintf(error_cause, 512, "JSON error: Missing element: recvport_audio_rtcp");
-				goto respond;
-			}
-			
-			guint16 recvport_video_rtcp = (guint16)json_integer_value(json_object_get(body, "recvport_video_rtcp"));
-			if (recvport_video_rtcp) {
-				JANUS_LOG(LOG_INFO, "%s Will read video RTCP from port %d\n", RTPFORWARD_NAME, recvport_video_rtcp);
-				session->recvport_video_rtcp = recvport_video_rtcp;
-			} else {
-				JANUS_LOG(LOG_ERR, "%s JSON error: Missing element: recvport_video_rtcp\n", RTPFORWARD_NAME);
-				error_code = RTPFORWARD_ERROR_MISSING_ELEMENT;
-				g_snprintf(error_cause, 512, "JSON error: Missing element: recvport_video_rtcp");
-				goto respond;
-			}
-			
-			
-			// close AUDIO RECEIVE socket if already open
-			if (session->recvsockfd_audio_rtcp) {
-				close(session->recvsockfd_audio_rtcp);
-				session->recvsockfd_audio_rtcp = -1;
-			}
-			// create AUDIO RECEIVE socket
-			session->recvsockfd_audio_rtcp = socket(AF_INET, SOCK_DGRAM, 0);
-			if(session->recvsockfd_audio_rtcp < 0) { // still?
-				JANUS_LOG(LOG_ERR, "%s Could create listening socket for audio RTCP...\n", RTPFORWARD_NAME);
-				error_code = 99; // TODO define
-				g_snprintf(error_cause, 512, "Could create listening socket for audio RTCP");
-				goto respond;
-			}
-			
-			
-			// close VIDEO RECEIVE socket if already open
-			if (session->recvsockfd_video_rtcp) {
-				close(session->recvsockfd_video_rtcp);
-				session->recvsockfd_video_rtcp = -1;
-			}
-			// create VIDEO RECEIVE socket
-			session->recvsockfd_video_rtcp = socket(AF_INET, SOCK_DGRAM, 0);
-			if(session->recvsockfd_video_rtcp < 0) { // still?
-				JANUS_LOG(LOG_ERR, "%s Could create listening socket for video RTCP...\n", RTPFORWARD_NAME);
-				error_code = 99; // TODO define
-				g_snprintf(error_cause, 512, "Could create listening socket for video RTCP");
-				goto respond;
-			}
-			
-			session->recvsockaddr_audio_rtcp.sin_addr.s_addr = INADDR_ANY;
-			session->recvsockaddr_audio_rtcp.sin_port = htons(session->recvport_audio_rtcp);
-			
-			session->recvsockaddr_video_rtcp.sin_addr.s_addr = INADDR_ANY;
-			session->recvsockaddr_video_rtcp.sin_port = htons(session->recvport_video_rtcp);
-
-			if (bind(session->recvsockfd_audio_rtcp, (struct sockaddr *)&session->recvsockaddr_audio_rtcp, sizeof(session->recvsockaddr_audio_rtcp)) < 0) {
-				JANUS_LOG(LOG_ERR, "%s Could not bind listening socket for audio RTCP...\n", RTPFORWARD_NAME);
-				error_code = 99; // TODO define
-				g_snprintf(error_cause, 512, "Could not bind listening socket for audio RTCP");
-				goto respond;
-			} else {
-				JANUS_LOG(LOG_INFO, "%s Bind listening socket for audio RTCP success...\n", RTPFORWARD_NAME);
-			}
-			
-			if (bind(session->recvsockfd_video_rtcp, (struct sockaddr *)&session->recvsockaddr_video_rtcp, sizeof(session->recvsockaddr_video_rtcp)) < 0) {
-				JANUS_LOG(LOG_ERR, "%s Could not bind listening socket for video RTCP...\n", RTPFORWARD_NAME);
-				error_code = 99; // TODO define
-				g_snprintf(error_cause, 512, "Could not bind listening socket for video RTCP");
-				goto respond;
-			} else {
-				JANUS_LOG(LOG_INFO, "%s Bind listening socket for video RTCP success...\n", RTPFORWARD_NAME);
-			}
-			
-			/* Launch the thread that will relay incoming RTP packets */
-			GError *err = NULL;
-			session->relay_thread = g_thread_try_new("rtpforward rtp handler", rtpforward_session_relay_thread, session, &err);
-			if(err != NULL) {
-				g_atomic_int_set(&initialized, 0);
-				JANUS_LOG(LOG_ERR, "%s Got error %d (%s) trying to launch the RTP handler handler thread...\n", RTPFORWARD_NAME, err->code, err->message ? err->message : "??");
-			} else {
-				JANUS_LOG(LOG_INFO, "%s Started thread rtpforward_session_relay_thread...\n", RTPFORWARD_NAME);
-			}
-#endif
 			
 			response = json_object();
 			json_object_set_new(response, "configured", json_string("ok"));
@@ -1083,84 +956,3 @@ error:
 	JANUS_LOG(LOG_VERB, "%s Leaving msg handler thread\n", RTPFORWARD_NAME);
 	return NULL;
 }
-
-#ifdef FORWARD_FEEDBACK
-#define BUFLEN 1500
-static void *rtpforward_session_relay_thread(void *data) {
-	JANUS_LOG(LOG_INFO, "%s Starting relay thread for session\n", RTPFORWARD_NAME);
-	
-	int resfd;
-	int bytes_received;
-	char buf[BUFLEN];
-	struct pollfd fds[2];
-	socklen_t addrlen_remote;
-	struct sockaddr_in addr_remote;
-	rtpforward_session *session = (rtpforward_session *)data;
-	
-	fds[0].fd = session->recvsockfd_audio_rtcp;
-	fds[0].events = POLLIN;
-	fds[0].revents = 0;
-	
-	fds[1].fd = session->recvsockfd_video_rtcp;
-	fds[1].events = POLLIN;
-	fds[1].revents = 0;
-	
-#define POLL_TIMEOUT_MS 1000
-	while(!g_atomic_int_get(&stopping) && !session->destroyed) { // checked every POLL_TIMEOUT_MS
-		//echo "hello" | socat - udp-sendto:127.0.0.1:60005
-		resfd = poll(fds, 2, POLL_TIMEOUT_MS);
-		
-		if(resfd < 0) {
-			if(errno == EINTR) {
-				JANUS_LOG(LOG_INFO, "%s Got an EINTR (%s), ignoring...\n", RTPFORWARD_NAME, strerror(errno));
-				continue;
-			}
-			JANUS_LOG(LOG_ERR, "%s Error polling... %d (%s) Exiting thread\n", RTPFORWARD_NAME, errno, strerror(errno));
-			break;
-			
-		} else if(resfd == 0) {
-			/* No data, keep going */
-			continue;
-		}
-		
-		if(fds[0].revents & (POLLERR | POLLHUP)) {
-			/* Socket error? */
-			JANUS_LOG(LOG_ERR, "%s Error polling: %s... %d (%s)\n", RTPFORWARD_NAME,
-				fds[0].revents & POLLERR ? "POLLERR" : "POLLHUP", errno, strerror(errno));
-			
-		} else if (fds[0].revents & POLLIN) {
-			// got packet
-			addrlen_remote = sizeof(addr_remote);
-			bytes_received = recvfrom(fds[0].fd, buf, BUFLEN, 0, (struct sockaddr*)&addr_remote, &addrlen_remote);
-			if(bytes_received > 0) {
-				JANUS_LOG(LOG_INFO, "%s Forwarding audio RTCP packet len %d\n", RTPFORWARD_NAME, bytes_received);
-				gateway->relay_rtcp((janus_plugin_session *)session, FALSE, buf, BUFLEN);
-			}
-		}
-		
-		if(fds[1].revents & (POLLERR | POLLHUP)) {
-			/* Socket error? */
-			JANUS_LOG(LOG_ERR, "%s Error polling: %s... %d (%s)\n", RTPFORWARD_NAME,
-				fds[1].revents & POLLERR ? "POLLERR" : "POLLHUP", errno, strerror(errno));
-			
-		} else if (fds[1].revents & POLLIN) {
-			// got packet
-			addrlen_remote = sizeof(addr_remote);
-			bytes_received = recvfrom(fds[1].fd, buf, BUFLEN, 0, (struct sockaddr*)&addr_remote, &addrlen_remote);
-			if(bytes_received > 0) {
-				JANUS_LOG(LOG_INFO, "%s Forwarding video RTCP packet len %d\n", RTPFORWARD_NAME, bytes_received);
-				gateway->relay_rtcp((janus_plugin_session *)session, TRUE, buf, BUFLEN);
-			}
-		}
-	}
-	
-	close(session->recvsockfd_audio_rtcp);
-	session->recvsockfd_audio_rtcp = -1;
-	
-	close(session->recvsockfd_video_rtcp);
-	session->recvsockfd_video_rtcp = -1;
-	
-	JANUS_LOG(LOG_INFO, "%s Leaving rtpforward_session_relay_thread\n", RTPFORWARD_NAME);
-	return NULL;
-}
-#endif
