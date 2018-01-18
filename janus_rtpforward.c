@@ -41,7 +41,7 @@
 #include "utils.h"
 
 #define RTPFORWARD_VERSION 1
-#define RTPFORWARD_VERSION_STRING	"0.2.2"
+#define RTPFORWARD_VERSION_STRING	"0.2.3"
 #define RTPFORWARD_DESCRIPTION "Forwards RTP and RTCP to an external UDP receiver/decoder"
 #define RTPFORWARD_NAME "rtpforward"
 #define RTPFORWARD_AUTHOR	"Michael Karl Franzl"
@@ -134,16 +134,16 @@ typedef struct rtpforward_session {
 	
 	GThread *relay_thread;
 	
-	uint16_t sendport_video_rtp;
-	uint16_t sendport_video_rtcp;
-	uint16_t sendport_audio_rtp;
-	uint16_t sendport_audio_rtcp;
+	guint16 sendport_video_rtp;
+	guint16 sendport_video_rtcp;
+	guint16 sendport_audio_rtp;
+	guint16 sendport_audio_rtcp;
 	int sendsockfd; // one socket for sento() several ports is enough
 	struct sockaddr_in sendsockaddr;
 	
 #ifdef FORWARD_FEEDBACK
-	uint16_t recvport_video_rtcp;
-	uint16_t recvport_audio_rtcp;
+	guint16 recvport_video_rtcp;
+	guint16 recvport_audio_rtcp;
 	int recvsockfd_video_rtcp;
 	int recvsockfd_audio_rtcp;
 	struct sockaddr_in recvsockaddr_video_rtcp;
@@ -158,12 +158,16 @@ typedef struct rtpforward_session {
 	
 	int fir_seqnr;
 	
-	uint16_t drop_permille;
-	uint16_t drop_video_packets;
-	uint16_t drop_audio_packets;
+	guint16 seqnr_video_last; // to keep track of lost packets
+	
+	guint16 drop_permille;
+	guint16 drop_video_packets;
+	guint16 drop_audio_packets;
+	
 	gboolean video_enabled;
 	gboolean audio_enabled;
 	gboolean enable_video_on_keyframe;
+	gboolean disable_video_on_packetloss;
 	
 	janus_rtp_switching_context context;
 	volatile gint hangingup;
@@ -366,6 +370,9 @@ void rtpforward_create_session(janus_plugin_session *handle, int *error) {
 	session->video_enabled = TRUE;
 	session->audio_enabled = TRUE;
 	session->enable_video_on_keyframe = FALSE;
+	session->disable_video_on_packetloss = FALSE;
+	
+	session->seqnr_video_last = 0;
 	
 #ifdef FORWARD_FEEDBACK
 	session->recvport_video_rtcp = 0;
@@ -455,21 +462,27 @@ struct janus_plugin_result *rtpforward_handle_message(janus_plugin_session *hand
 		JANUS_LOG(LOG_INFO, "%s session->enable_video_on_keyframe %s\n", RTPFORWARD_NAME, (session->enable_video_on_keyframe ? "TRUE" : "FALSE"));
 	}
 	
+	json_t *disable_video_on_packetloss = json_object_get(body, "disable_video_on_packetloss");
+	if (disable_video_on_packetloss) {
+		session->disable_video_on_packetloss = (gboolean)json_boolean_value(disable_video_on_packetloss);
+		JANUS_LOG(LOG_INFO, "%s session->disable_video_on_packetloss %s\n", RTPFORWARD_NAME, (session->disable_video_on_packetloss ? "TRUE" : "FALSE"));
+	}
+	
 	json_t *drop_probability = json_object_get(body, "drop_probability");
 	if (drop_probability) {
-		session->drop_permille = (uint16_t)json_integer_value(drop_probability);
+		session->drop_permille = (guint16)json_integer_value(drop_probability);
 		JANUS_LOG(LOG_INFO, "%s session->drop_permille=%d\n", RTPFORWARD_NAME, session->drop_permille);
 	}
 	
 	json_t *drop_video_packets = json_object_get(body, "drop_video_packets");
 	if (drop_video_packets) {
-		session->drop_video_packets = (uint16_t)json_integer_value(drop_video_packets);
+		session->drop_video_packets = (guint16)json_integer_value(drop_video_packets);
 		JANUS_LOG(LOG_INFO, "%s session->drop_video_packets=%d\n", RTPFORWARD_NAME, session->drop_video_packets);
 	}
 	
 	json_t *drop_audio_packets = json_object_get(body, "drop_audio_packets");
 	if (drop_audio_packets) {
-		session->drop_audio_packets = (uint16_t)json_integer_value(drop_audio_packets);
+		session->drop_audio_packets = (guint16)json_integer_value(drop_audio_packets);
 		JANUS_LOG(LOG_INFO, "%s session->drop_audio_packets=%d\n", RTPFORWARD_NAME, session->drop_audio_packets);
 	}
 	
@@ -524,7 +537,7 @@ struct janus_plugin_result *rtpforward_handle_message(janus_plugin_session *hand
 				}
 			}
 			
-			uint16_t sendport_video_rtp = (uint16_t)json_integer_value(json_object_get(body, "sendport_video_rtp"));
+			guint16 sendport_video_rtp = (guint16)json_integer_value(json_object_get(body, "sendport_video_rtp"));
 			if (sendport_video_rtp) {
 				JANUS_LOG(LOG_INFO, "%s Will forward to port %d\n", RTPFORWARD_NAME, sendport_video_rtp);
 				session->sendport_video_rtp = sendport_video_rtp;
@@ -535,7 +548,7 @@ struct janus_plugin_result *rtpforward_handle_message(janus_plugin_session *hand
 				goto respond;
 			}
 			
-			uint16_t sendport_video_rtcp = (uint16_t)json_integer_value(json_object_get(body, "sendport_video_rtcp"));
+			guint16 sendport_video_rtcp = (guint16)json_integer_value(json_object_get(body, "sendport_video_rtcp"));
 			if (sendport_video_rtcp) {
 				JANUS_LOG(LOG_INFO, "%s Will forward to port %d\n", RTPFORWARD_NAME, sendport_video_rtcp);
 				session->sendport_video_rtcp = sendport_video_rtcp;
@@ -546,7 +559,7 @@ struct janus_plugin_result *rtpforward_handle_message(janus_plugin_session *hand
 				goto respond;
 			}
 			
-			uint16_t sendport_audio_rtp = (uint16_t)json_integer_value(json_object_get(body, "sendport_audio_rtp"));
+			guint16 sendport_audio_rtp = (guint16)json_integer_value(json_object_get(body, "sendport_audio_rtp"));
 			if (sendport_audio_rtp) {
 				JANUS_LOG(LOG_INFO, "%s Will forward to port %d\n", RTPFORWARD_NAME, sendport_audio_rtp);
 				session->sendport_audio_rtp = sendport_audio_rtp;
@@ -557,7 +570,7 @@ struct janus_plugin_result *rtpforward_handle_message(janus_plugin_session *hand
 				goto respond;
 			}
 			
-			uint16_t sendport_audio_rtcp = (uint16_t)json_integer_value(json_object_get(body, "sendport_audio_rtcp"));
+			guint16 sendport_audio_rtcp = (guint16)json_integer_value(json_object_get(body, "sendport_audio_rtcp"));
 			if (sendport_audio_rtcp) {
 				JANUS_LOG(LOG_INFO, "%s Will forward to port %d\n", RTPFORWARD_NAME, sendport_audio_rtcp);
 				session->sendport_audio_rtcp = sendport_audio_rtcp;
@@ -579,40 +592,43 @@ struct janus_plugin_result *rtpforward_handle_message(janus_plugin_session *hand
 				goto respond;
 			}
 			
-			// create the SEND socket
-			if (session->sendsockfd < 0) { // only once
-				session->sendsockfd = socket(AF_INET, SOCK_DGRAM, 0);
-				if (session->sendsockfd < 0) { // error
-					JANUS_LOG(LOG_ERR, "%s Could not create sending socket\n", RTPFORWARD_NAME);
-					error_code = 99; // TODO: define this
-					g_snprintf(error_cause, 512, "Could not create sending socket");
-					goto respond;
-				}
+			// close socket if already open
+			if (session->sendsockfd) {
+				close(session->sendsockfd);
+				session->sendsockfd = -1;
+			}
+			
+			// create and configure socket
+			session->sendsockfd = socket(AF_INET, SOCK_DGRAM, 0);
+			if (session->sendsockfd < 0) { // error
+				JANUS_LOG(LOG_ERR, "%s Could not create sending socket\n", RTPFORWARD_NAME);
+				error_code = 99; // TODO: define this
+				g_snprintf(error_cause, 512, "Could not create sending socket");
+				goto respond;
+			}
+			if (IN_MULTICAST(ntohl(inet_addr(sendipv4)))) {
+				u_int ttl = 0; // do not route UDP packets outside of local host
+				setsockopt(session->sendsockfd, IPPROTO_IP, IP_MULTICAST_TTL, &ttl, sizeof(ttl));
 				
-				if (IN_MULTICAST(ntohl(inet_addr(sendipv4)))) {
-					u_int ttl = 0; // do not route UDP packets outside of local host
-					setsockopt(session->sendsockfd, IPPROTO_IP, IP_MULTICAST_TTL, &ttl, sizeof(ttl));
-					
-					struct in_addr mcast_iface_addr;
-					// We explicitly choose the multicast network interface, otherwise the kernel will choose for us.
-					// We go for the software loopback interface for low latency. A physical ethernet card could add latency.
-					mcast_iface_addr.s_addr = htonl(INADDR_LOOPBACK);
-					
-					JANUS_LOG(LOG_WARN, "%s: This rtpforward session will multicast to IP multicast address %s "
-					"because you specified it. The IP_MULTICAST_TTL option has been set to 0 (zero), which "
-					"SHOULD cause at least the first router (the Linux kernel) to NOT forward the UDP packets. "
-					"The behavior is is however OS-specific. You SHOULD verify that the UDP packets "
-					"are not inadvertenly forwarded into network zones where the security/privacy of the packets "
-					"could be compromised.\n", RTPFORWARD_NAME, inet_ntoa(session->sendsockaddr.sin_addr));
-					
-					JANUS_LOG(LOG_WARN, "%s: Will multicast from network interface with IP %s\n", RTPFORWARD_NAME, inet_ntoa(mcast_iface_addr));
-					
-					setsockopt(session->sendsockfd, IPPROTO_IP, IP_MULTICAST_IF, &mcast_iface_addr, sizeof(mcast_iface_addr));
-				}
+				struct in_addr mcast_iface_addr;
+				// We explicitly choose the multicast network interface, otherwise the kernel will choose for us.
+				// We go for the software loopback interface for low latency. A physical ethernet card could add latency.
+				mcast_iface_addr.s_addr = htonl(INADDR_LOOPBACK);
+				
+				JANUS_LOG(LOG_WARN, "%s: This rtpforward session will multicast to IP multicast address %s "
+				"because you specified it. The IP_MULTICAST_TTL option has been set to 0 (zero), which "
+				"SHOULD cause at least the first router (the Linux kernel) to NOT forward the UDP packets. "
+				"The behavior is is however OS-specific. You SHOULD verify that the UDP packets "
+				"are not inadvertenly forwarded into network zones where the security/privacy of the packets "
+				"could be compromised.\n", RTPFORWARD_NAME, inet_ntoa(session->sendsockaddr.sin_addr));
+				
+				JANUS_LOG(LOG_WARN, "%s: Will multicast from network interface with IP %s\n", RTPFORWARD_NAME, inet_ntoa(mcast_iface_addr));
+				
+				setsockopt(session->sendsockfd, IPPROTO_IP, IP_MULTICAST_IF, &mcast_iface_addr, sizeof(mcast_iface_addr));
 			}
 			
 #ifdef FORWARD_FEEDBACK
-			uint16_t recvport_audio_rtcp = (uint16_t)json_integer_value(json_object_get(body, "recvport_audio_rtcp"));
+			guint16 recvport_audio_rtcp = (guint16)json_integer_value(json_object_get(body, "recvport_audio_rtcp"));
 			if (recvport_audio_rtcp) {
 				JANUS_LOG(LOG_INFO, "%s Will read audio RTCP from port %d\n", RTPFORWARD_NAME, recvport_audio_rtcp);
 				session->recvport_audio_rtcp = recvport_audio_rtcp;
@@ -623,7 +639,7 @@ struct janus_plugin_result *rtpforward_handle_message(janus_plugin_session *hand
 				goto respond;
 			}
 			
-			uint16_t recvport_video_rtcp = (uint16_t)json_integer_value(json_object_get(body, "recvport_video_rtcp"));
+			guint16 recvport_video_rtcp = (guint16)json_integer_value(json_object_get(body, "recvport_video_rtcp"));
 			if (recvport_video_rtcp) {
 				JANUS_LOG(LOG_INFO, "%s Will read video RTCP from port %d\n", RTPFORWARD_NAME, recvport_video_rtcp);
 				session->recvport_video_rtcp = recvport_video_rtcp;
@@ -634,26 +650,34 @@ struct janus_plugin_result *rtpforward_handle_message(janus_plugin_session *hand
 				goto respond;
 			}
 			
-			// create the RECEIVE socket for audio RTCP
-			if (session->recvsockfd_audio_rtcp < 0) {
-				session->recvsockfd_audio_rtcp = socket(AF_INET, SOCK_DGRAM, 0);
-				if(session->recvsockfd_audio_rtcp < 0) { // still?
-					JANUS_LOG(LOG_ERR, "%s Could create listening socket for audio RTCP...\n", RTPFORWARD_NAME);
-					error_code = 99; // TODO define
-					g_snprintf(error_cause, 512, "Could create listening socket for audio RTCP");
-					goto respond;
-				}
+			
+			// close AUDIO RECEIVE socket if already open
+			if (session->recvsockfd_audio_rtcp) {
+				close(session->recvsockfd_audio_rtcp);
+				session->recvsockfd_audio_rtcp = -1;
+			}
+			// create AUDIO RECEIVE socket
+			session->recvsockfd_audio_rtcp = socket(AF_INET, SOCK_DGRAM, 0);
+			if(session->recvsockfd_audio_rtcp < 0) { // still?
+				JANUS_LOG(LOG_ERR, "%s Could create listening socket for audio RTCP...\n", RTPFORWARD_NAME);
+				error_code = 99; // TODO define
+				g_snprintf(error_cause, 512, "Could create listening socket for audio RTCP");
+				goto respond;
 			}
 			
-			// create the RECEIVE socket for video RTCP
-			if (session->recvsockfd_video_rtcp < 0) {
-				session->recvsockfd_video_rtcp = socket(AF_INET, SOCK_DGRAM, 0);
-				if(session->recvsockfd_video_rtcp < 0) { // still?
-					JANUS_LOG(LOG_ERR, "%s Could create listening socket for video RTCP...\n", RTPFORWARD_NAME);
-					error_code = 99; // TODO define
-					g_snprintf(error_cause, 512, "Could create listening socket for video RTCP");
-					goto respond;
-				}
+			
+			// close VIDEO RECEIVE socket if already open
+			if (session->recvsockfd_video_rtcp) {
+				close(session->recvsockfd_video_rtcp);
+				session->recvsockfd_video_rtcp = -1;
+			}
+			// create VIDEO RECEIVE socket
+			session->recvsockfd_video_rtcp = socket(AF_INET, SOCK_DGRAM, 0);
+			if(session->recvsockfd_video_rtcp < 0) { // still?
+				JANUS_LOG(LOG_ERR, "%s Could create listening socket for video RTCP...\n", RTPFORWARD_NAME);
+				error_code = 99; // TODO define
+				g_snprintf(error_cause, 512, "Could create listening socket for video RTCP");
+				goto respond;
 			}
 			
 			session->recvsockaddr_audio_rtcp.sin_addr.s_addr = INADDR_ANY;
@@ -661,8 +685,7 @@ struct janus_plugin_result *rtpforward_handle_message(janus_plugin_session *hand
 			
 			session->recvsockaddr_video_rtcp.sin_addr.s_addr = INADDR_ANY;
 			session->recvsockaddr_video_rtcp.sin_port = htons(session->recvport_video_rtcp);
-			
-			// TODO: protect against multiple runs of configure
+
 			if (bind(session->recvsockfd_audio_rtcp, (struct sockaddr *)&session->recvsockaddr_audio_rtcp, sizeof(session->recvsockaddr_audio_rtcp)) < 0) {
 				JANUS_LOG(LOG_ERR, "%s Could not bind listening socket for audio RTCP...\n", RTPFORWARD_NAME);
 				error_code = 99; // TODO define
@@ -705,6 +728,7 @@ struct janus_plugin_result *rtpforward_handle_message(janus_plugin_session *hand
 			
 		} else if (!strcmp(request_text, "fir")) {
 			char buf[20];
+			// TODO: I don't understand session->fir_seqr yet.
 			janus_rtcp_fir((char *)&buf, 20, &session->fir_seqnr);
 			gateway->relay_rtcp(session->handle, 1, buf, 20);
 			response = json_object();
@@ -780,7 +804,7 @@ void rtpforward_setup_media(janus_plugin_session *handle) {
 void rtpforward_incoming_rtp(janus_plugin_session *handle, int video, char *buf, int len) {
 	rtpforward_session *session = (rtpforward_session *)handle->plugin_handle; // simple and fast. echotest does the same.
 	
-	if (session->sendsockfd < 0) return; // skip if no socket open
+	if (session->sendsockfd < 0) return; // not yet configured: skip if no socket open
 	
 	struct sockaddr_in addr = session->sendsockaddr;
 	socklen_t addrlen = sizeof(struct sockaddr_in);
@@ -788,7 +812,34 @@ void rtpforward_incoming_rtp(janus_plugin_session *handle, int video, char *buf,
 	if (session->drop_permille > g_random_int_range(0,1000))
 		return; // simulate bad connection
 	
-	if (video) {
+	if (video) { // VIDEO
+		janus_rtp_header *header = (janus_rtp_header *)buf;
+		guint16 seqn_current = ntohs(header->seq_number);
+		guint16 seqnr_last = session->seqnr_video_last;
+		
+		guint16 missed = seqn_current - seqnr_last - (guint16)1;
+		
+		//JANUS_LOG(LOG_WARN, "%s Missed %d\n", RTPFORWARD_NAME, missed);
+
+		if (seqn_current < seqnr_last) {
+			// guint16 has wrapped, assume we have missed nothing since it is very unlikely.
+			missed = 0;
+		}
+			
+		if (missed) {
+			JANUS_LOG(LOG_WARN, "%s Missed %d packets before sequence number %d\n", RTPFORWARD_NAME, missed, seqn_current);
+			
+			// We have missined at least one packet.
+			// Some downstream decoders could be very sensitive to packet loss.
+			// In this case, it is recommended to stop video forwarding, and only
+			// re-start it at the next keyframe.
+			if (session->disable_video_on_packetloss && session->video_enabled) {
+				JANUS_LOG(LOG_WARN, "%s Disabling video forwarding because of packet loss\n", RTPFORWARD_NAME);
+				session->video_enabled = FALSE;
+			}
+		}
+		
+		// Detect keyframes and maybe re-enable video.
 		gboolean is_keyframe;
 		int plen = 0;
 		char *payload = janus_rtp_payload(buf, len, &plen);
@@ -799,11 +850,10 @@ void rtpforward_incoming_rtp(janus_plugin_session *handle, int video, char *buf,
 		} else if (session->vcodec == CODEC_H264) {
 			is_keyframe = janus_h264_is_keyframe(payload, plen);
 		}
-		
 		if (is_keyframe) {
-			JANUS_LOG(LOG_INFO, "%s Received keyframe\n", RTPFORWARD_NAME);
-			
-			if (session->enable_video_on_keyframe) {
+			JANUS_LOG(LOG_DBG, "%s Received keyframe\n", RTPFORWARD_NAME);
+			if (session->enable_video_on_keyframe && !session->video_enabled) {
+				JANUS_LOG(LOG_WARN, "%s Enabling video forwarding because of keyframe\n", RTPFORWARD_NAME);
 				session->video_enabled = TRUE;
 			}
 		}
@@ -812,19 +862,27 @@ void rtpforward_incoming_rtp(janus_plugin_session *handle, int video, char *buf,
 			session->drop_video_packets--;
 			return;
 		}
+		
+		session->seqnr_video_last = seqn_current;
+		
 		if (!session->video_enabled)
 			return;
-		addr.sin_port = htons(session->sendport_video_rtp);
 		
-	} else {
+		addr.sin_port = htons(session->sendport_video_rtp);
+
+		
+	} else { // AUDIO
 		if (session->drop_audio_packets > 0) {
 			session->drop_audio_packets--;
 			return;
 		}
 		if (!session->audio_enabled)
 			return;
+		
 		addr.sin_port = htons(session->sendport_audio_rtp);
 	}
+	
+	// forward to the selected UDP port
 	int numsent = sendto(session->sendsockfd, buf, len, 0, (struct sockaddr*)&addr, addrlen);
 }
 
@@ -839,6 +897,8 @@ void rtpforward_incoming_rtcp(janus_plugin_session *handle, int video, char *buf
 	} else {
 		addr.sin_port = htons(session->sendport_audio_rtcp);
 	}
+	
+	// forward to the selected UDP port
 	int numsent = sendto(session->sendsockfd, buf, len, 0, (struct sockaddr*)&addr, addrlen);
 }
 

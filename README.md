@@ -24,7 +24,7 @@ There are no configuration files. All ports/addresses can be configured via the 
 
 All `send*` keys are required and specify the target UDP ports/addresses. This plugin simply uses the `sendto()` system call. For now, only an IPv4 target address is supported.
 
-The `offer*` keys are optional and specify which codecs should be used in the JSEP answer of Janus.
+The `offer*` keys are optional and specify which codecs should be used in the JSEP answer of Janus. The defaults are `"opus"` and `"vp8"`.
 
 ## Browser requests
 
@@ -49,7 +49,11 @@ To enable or disable forwarding of video packets, send the following payload:
 
 		"video_enabled": true|false
 
-To auto-enable video forwarding at the next keyframe, send the following payload:
+Depending on the video codec used, some video decoders (used downstream) do not handle packet loss well (even when it's just a single packet missed). Some output slightly distorted video, some extremely distorted video, others outright crash. To mitigate this problem a bit, you can configure the plugin to auto-disable video forwarding when a single packet has been missed (it seems that WebRTC browsers do the same: When a packet has been missed, they freeze the video to the last successfully decoded image):
+
+		"disable_video_on_packetloss" : true|false
+
+If you use the `disable_video_on_packetloss` feature, you can auto re-enable the video forwarding at the next incoming keyframe. Decoders usually can recover with a received keyframe:
 
 		"enable_video_on_keyframe": true
 
@@ -70,12 +74,8 @@ To experiment how a downstream RTP/RTCP receiver can tolerate packet loss, there
 
 		"drop_audio_packets": <integer>
 
-These packet loss simulations are very simple and do not reflect real networks, but they may be useful for debugging.
+These packet loss simulations are very simple and do not reflect real networks, but they may be useful for debugging. Note that when dropping packets this way, the `disable_video_on_packetloss` feature (see above) triggers normally.
 
-
-# Limitations
-
-This plugin only accepts VP8 and OPUS in RECVONLY mode. This is hardcoded via arguments to the `janus_sdp_generate_answer()` function, but can be changed easily (see comments there).
 
 
 # UDP broadcast/multicast
@@ -159,7 +159,7 @@ videopt = 100
 videortpmap = VP8/90000
 ````
 
-... then all subscribers to this mountpoint (id=1) will receive realtime A/V from the first rtpforward session.
+... then all subscribers to this mountpoint (id=1) will receive realtime A/V from the rtpforward session.
 
 
 # Acknowledgements
