@@ -120,6 +120,8 @@ typedef struct rtpforward_message {
 static GAsyncQueue *messages = NULL;
 static rtpforward_message exit_message;
 
+#define RTPFORWARD_CODEC_STR_LEN 10
+
 typedef struct rtpforward_session {
 	janus_plugin_session *handle;
 	
@@ -129,8 +131,8 @@ typedef struct rtpforward_session {
 	uint16_t sendport_video_rtcp;
 	uint16_t sendport_audio_rtp;
 	uint16_t sendport_audio_rtcp;
-	
-	int sendsockfd; // one socket for sending is enough
+	int sendsockfd; // one socket for sento() several ports is enough
+	struct sockaddr_in sendsockaddr;
 	
 #ifdef FORWARD_FEEDBACK
 	uint16_t recvport_video_rtcp;
@@ -141,16 +143,17 @@ typedef struct rtpforward_session {
 	struct sockaddr_in recvsockaddr_audio_rtcp;
 #endif
 	
-	struct sockaddr_in sendsockaddr;
-	
+	char audio_codec[RTPFORWARD_CODEC_STR_LEN];
+	char video_codec[RTPFORWARD_CODEC_STR_LEN];
 	int fir_seqnr;
-
+	
 	uint16_t drop_permille;
 	uint16_t drop_video_packets;
 	uint16_t drop_audio_packets;
 	gboolean video_enabled;
 	gboolean audio_enabled;
 	gboolean enable_video_on_keyframe;
+	
 	janus_rtp_switching_context context;
 	volatile gint hangingup;
 	gint64 destroyed;	/* Time at which this session was marked as destroyed */
@@ -346,6 +349,9 @@ void rtpforward_create_session(janus_plugin_session *handle, int *error) {
 	session->sendsockfd = -1;
 	session->sendsockaddr = (struct sockaddr_in){ .sin_family = AF_INET };
 	
+	strcpy(session->audio_codec, "opus");
+	strcpy(session->video_codec, "vp8");
+	
 	session->video_enabled = TRUE;
 	session->audio_enabled = TRUE;
 	session->enable_video_on_keyframe = FALSE;
@@ -474,6 +480,38 @@ struct janus_plugin_result *rtpforward_handle_message(janus_plugin_session *hand
 		const char *request_text = json_string_value(request);
 		
 		if(!strcmp(request_text, "configure")) {
+			
+			const char *audio_codec = json_string_value(json_object_get(body, "audio_codec"));
+			if (audio_codec) {
+				// For supported audio codecs, see sdp-utils.c
+				if (!strcmp(audio_codec, "pcmu")) {
+					strcpy(session->audio_codec, "pcmu");
+				} else if (!strcmp(audio_codec, "pcma")) {
+					strcpy(session->audio_codec, "pcma");
+				} else if (!strcmp(audio_codec, "g722")) {
+					strcpy(session->audio_codec, "g722");
+				} else if (!strcmp(audio_codec, "isac16")) {
+					strcpy(session->audio_codec, "isac16");
+				} else if (!strcmp(audio_codec, "isac32")) {
+					strcpy(session->audio_codec, "isac32");
+				} else {
+					// "opus" or default
+					strcpy(session->audio_codec, "opus");
+				}
+			}
+			
+			const char *video_codec = json_string_value(json_object_get(body, "video_codec"));
+			if (video_codec) {
+				// For supported video codecs, see sdp-utils.c
+				if (!strcmp(video_codec, "h264")) {
+					strcpy(session->video_codec, "h264");
+				} else if (!strcmp(video_codec, "vp9")) {
+					strcpy(session->video_codec, "vp9");
+				} else {
+					// "vp8" or default
+					strcpy(session->video_codec, "vp8");
+				}
+			}
 			
 			uint16_t sendport_video_rtp = (uint16_t)json_integer_value(json_object_get(body, "sendport_video_rtp"));
 			if (sendport_video_rtp) {
@@ -740,7 +778,9 @@ void rtpforward_incoming_rtp(janus_plugin_session *handle, int video, char *buf,
 		return; // simulate bad connection
 	
 	if (video) {
-		gboolean is_keyframe = janus_vp8_is_keyframe(buf, len);
+		gboolean is_keyframe;
+		
+		if (session)= janus_vp8_is_keyframe(buf, len);
 		
 		if (is_keyframe) {
 			JANUS_LOG(LOG_INFO, "%s Received keyframe.\n", RTPFORWARD_NAME);
@@ -887,17 +927,23 @@ static void *rtpforward_handler_thread(void *data) {
 			janus_sdp *answer = janus_sdp_generate_answer(offer,
 				JANUS_SDP_OA_AUDIO, TRUE,
 				JANUS_SDP_OA_AUDIO_DIRECTION, JANUS_SDP_RECVONLY,
-				JANUS_SDP_OA_AUDIO_CODEC, "opus", // "opus", "pcmu", "pcma", "g722", "isac16", "isac32", see sdp-utils.c
+				JANUS_SDP_OA_AUDIO_CODEC, session->audio_codec,
 				
 				JANUS_SDP_OA_VIDEO, TRUE,
 				JANUS_SDP_OA_VIDEO_DIRECTION, JANUS_SDP_RECVONLY,
-				JANUS_SDP_OA_VIDEO_CODEC, "vp8", // "vp8", "vp9", "h264", see sdp-utils.c
+				JANUS_SDP_OA_VIDEO_CODEC, session->video_codec,
 				
 				JANUS_SDP_OA_DATA, FALSE,
 				JANUS_SDP_OA_DONE
 			);
 			
 			janus_sdp_free(offer);
+			
+			//janus_sdp_find_first_codecs(answer, &session->acodec, &session->vcodec);
+			if(session->acodec == NULL)
+				session->has_audio = FALSE;
+			if(session->vcodec == NULL)
+				session->has_video = FALSE;
 			
 			char *sdp_answer = janus_sdp_write(answer);
 			janus_sdp_free(answer);
