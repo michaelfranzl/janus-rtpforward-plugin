@@ -686,16 +686,21 @@ void rtpforward_incoming_rtp(janus_plugin_session *handle, int video, char *buf,
 		return; // simulate bad connection
 	
 	if (video) { // VIDEO
+		
+		if (session->drop_video_packets > 0) {
+			session->drop_video_packets--;
+			return;
+		}
+		
 		janus_rtp_header *header = (janus_rtp_header *)buf;
 		guint16 seqn_current = ntohs(header->seq_number);
 		guint16 seqnr_last = session->seqnr_video_last;
 		
 		guint16 missed = seqn_current - seqnr_last - (guint16)1;
-		
-		//JANUS_LOG(LOG_WARN, "%s Missed %d\n", RTPFORWARD_NAME, missed);
-
-		if (seqn_current < seqnr_last) {
-			// guint16 has wrapped, assume we have missed nothing since it is very unlikely.
+		if (
+			!seqnr_last || // first packet
+			seqn_current < seqnr_last // guint16 has wrapped
+		) {
 			missed = 0;
 		}
 			
@@ -731,10 +736,7 @@ void rtpforward_incoming_rtp(janus_plugin_session *handle, int video, char *buf,
 			}
 		}
 		
-		if (session->drop_video_packets > 0) {
-			session->drop_video_packets--;
-			return;
-		}
+
 		
 		session->seqnr_video_last = seqn_current;
 		
