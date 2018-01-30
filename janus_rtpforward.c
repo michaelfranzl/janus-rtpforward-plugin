@@ -133,8 +133,8 @@ typedef struct rtpforward_session {
 	
 	rtpforward_video_codec vcodec;
 	
-	char offer_acodec[RTPFORWARD_CODEC_STR_LEN];
-	char offer_vcodec[RTPFORWARD_CODEC_STR_LEN];
+	char negotiate_acodec[RTPFORWARD_CODEC_STR_LEN];
+	char negotiate_vcodec[RTPFORWARD_CODEC_STR_LEN];
 	
 	gboolean video_enabled;
 	gboolean audio_enabled;
@@ -336,8 +336,8 @@ void rtpforward_create_session(janus_plugin_session *handle, int *error) {
 	session->sendsockfd = -1;
 	session->sendsockaddr = (struct sockaddr_in){ .sin_family = AF_INET };
 	
-	strcpy(session->offer_acodec, "opus");
-	strcpy(session->offer_vcodec, "vp8");
+	strcpy(session->negotiate_acodec, "opus");
+	strcpy(session->negotiate_vcodec, "vp8");
 	
 	session->video_enabled = TRUE;
 	session->audio_enabled = TRUE;
@@ -466,35 +466,35 @@ struct janus_plugin_result *rtpforward_handle_message(janus_plugin_session *hand
 		
 		if(!strcmp(request_text, "configure")) {
 			
-			const char *offer_acodec = json_string_value(json_object_get(body, "offer_acodec"));
-			if (offer_acodec) {
+			const char *negotiate_acodec = json_string_value(json_object_get(body, "negotiate_acodec"));
+			if (negotiate_acodec) {
 				// For supported audio codecs, see sdp-utils.c
-				if (!strcmp(offer_acodec, "pcmu")) {
-					strcpy(session->offer_acodec, "pcmu");
-				} else if (!strcmp(offer_acodec, "pcma")) {
-					strcpy(session->offer_acodec, "pcma");
-				} else if (!strcmp(offer_acodec, "g722")) {
-					strcpy(session->offer_acodec, "g722");
-				} else if (!strcmp(offer_acodec, "isac16")) {
-					strcpy(session->offer_acodec, "isac16");
-				} else if (!strcmp(offer_acodec, "isac32")) {
-					strcpy(session->offer_acodec, "isac32");
+				if (!strcmp(negotiate_acodec, "pcmu")) {
+					strcpy(session->negotiate_acodec, "pcmu");
+				} else if (!strcmp(negotiate_acodec, "pcma")) {
+					strcpy(session->negotiate_acodec, "pcma");
+				} else if (!strcmp(negotiate_acodec, "g722")) {
+					strcpy(session->negotiate_acodec, "g722");
+				} else if (!strcmp(negotiate_acodec, "isac16")) {
+					strcpy(session->negotiate_acodec, "isac16");
+				} else if (!strcmp(negotiate_acodec, "isac32")) {
+					strcpy(session->negotiate_acodec, "isac32");
 				} else {
 					// "opus" or default
-					strcpy(session->offer_acodec, "opus");
+					strcpy(session->negotiate_acodec, "opus");
 				}
 			}
 			
-			const char *offer_vcodec = json_string_value(json_object_get(body, "offer_vcodec"));
-			if (offer_vcodec) {
+			const char *negotiate_vcodec = json_string_value(json_object_get(body, "negotiate_vcodec"));
+			if (negotiate_vcodec) {
 				// For supported video codecs, see sdp-utils.c
-				if (!strcmp(offer_vcodec, "h264")) {
-					strcpy(session->offer_vcodec, "h264");
-				} else if (!strcmp(offer_vcodec, "vp9")) {
-					strcpy(session->offer_vcodec, "vp9");
+				if (!strcmp(negotiate_vcodec, "h264")) {
+					strcpy(session->negotiate_vcodec, "h264");
+				} else if (!strcmp(negotiate_vcodec, "vp9")) {
+					strcpy(session->negotiate_vcodec, "vp9");
 				} else {
 					// "vp8" or default
-					strcpy(session->offer_vcodec, "vp8");
+					strcpy(session->negotiate_vcodec, "vp8");
 				}
 			}
 			
@@ -880,11 +880,11 @@ static void *rtpforward_handler_thread(void *data) {
 			janus_sdp *answer = janus_sdp_generate_answer(offer,
 				JANUS_SDP_OA_AUDIO, TRUE,
 				JANUS_SDP_OA_AUDIO_DIRECTION, JANUS_SDP_RECVONLY,
-				JANUS_SDP_OA_AUDIO_CODEC, session->offer_acodec,
+				JANUS_SDP_OA_AUDIO_CODEC, session->negotiate_acodec,
 				
 				JANUS_SDP_OA_VIDEO, TRUE,
 				JANUS_SDP_OA_VIDEO_DIRECTION, JANUS_SDP_RECVONLY,
-				JANUS_SDP_OA_VIDEO_CODEC, session->offer_vcodec,
+				JANUS_SDP_OA_VIDEO_CODEC, session->negotiate_vcodec,
 				
 				JANUS_SDP_OA_DATA, FALSE,
 				JANUS_SDP_OA_DONE
@@ -892,20 +892,23 @@ static void *rtpforward_handler_thread(void *data) {
 			
 			janus_sdp_free(offer);
 			
-			const char *offered_acodec, *offered_vcodec;
+			const char *negotiated_acodec, *negotiated_vcodec;
 			
-			janus_sdp_find_first_codecs(answer, &offered_acodec, &offered_vcodec);
+			janus_sdp_find_first_codecs(answer, &negotiated_acodec, &negotiated_vcodec);
 			
-			if (!strcmp(offered_vcodec, "vp8")) {
-				JANUS_LOG(LOG_INFO, "%s Negotiated video codec is VP8\n", RTPFORWARD_NAME);
-				session->vcodec = CODEC_VP8;
-			} else if (!strcmp(offered_vcodec, "vp9")) {
-				JANUS_LOG(LOG_INFO, "%s Negotiated video codec is VP9\n", RTPFORWARD_NAME);
-				session->vcodec = CODEC_VP9;
-			} else if (!strcmp(offered_vcodec, "h264")) {
-				JANUS_LOG(LOG_INFO, "%s Negotiated video codec is H264\n", RTPFORWARD_NAME);
-				session->vcodec = CODEC_H264;
+			if (negotiated_vcodec) {
+				if (!strcmp(negotiated_vcodec, "vp8")) {
+					JANUS_LOG(LOG_INFO, "%s Negotiated video codec is VP8\n", RTPFORWARD_NAME);
+					session->vcodec = CODEC_VP8;
+				} else if (!strcmp(negotiated_vcodec, "vp9")) {
+					JANUS_LOG(LOG_INFO, "%s Negotiated video codec is VP9\n", RTPFORWARD_NAME);
+					session->vcodec = CODEC_VP9;
+				} else if (!strcmp(negotiated_vcodec, "h264")) {
+					JANUS_LOG(LOG_INFO, "%s Negotiated video codec is H264\n", RTPFORWARD_NAME);
+					session->vcodec = CODEC_H264;
+				}
 			} else {
+				JANUS_LOG(LOG_INFO, "%s No video for this session\n", RTPFORWARD_NAME);
 				session->vcodec = CODEC_NONE;
 			}
 			
