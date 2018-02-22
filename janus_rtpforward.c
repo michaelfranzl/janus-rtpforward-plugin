@@ -743,6 +743,8 @@ void rtpforward_incoming_rtp(janus_plugin_session *handle, int video, char *buf,
 		if (!session->video_enabled)
 			return;
 		
+		//JANUS_LOG(LOG_INFO, "%s Video %d\n", RTPFORWARD_NAME, seqn_current);
+		
 		addr.sin_port = htons(session->sendport_video_rtp);
 
 		
