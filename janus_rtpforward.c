@@ -419,13 +419,13 @@ struct janus_plugin_result *rtpforward_handle_message(janus_plugin_session *hand
 	
 	json_t *enable_video_on_keyframe = json_object_get(body, "enable_video_on_keyframe");
 	if (enable_video_on_keyframe) {
-		session->enable_video_on_keyframe = (gboolean)json_boolean_value(enable_video_on_keyframe);
+		session->enable_video_on_keyframe = (gboolean)json_is_true(enable_video_on_keyframe);
 		JANUS_LOG(LOG_INFO, "%s session->enable_video_on_keyframe %s\n", RTPFORWARD_NAME, (session->enable_video_on_keyframe ? "TRUE" : "FALSE"));
 	}
 	
 	json_t *disable_video_on_packetloss = json_object_get(body, "disable_video_on_packetloss");
 	if (disable_video_on_packetloss) {
-		session->disable_video_on_packetloss = (gboolean)json_boolean_value(disable_video_on_packetloss);
+		session->disable_video_on_packetloss = (gboolean)json_is_true(disable_video_on_packetloss);
 		JANUS_LOG(LOG_INFO, "%s session->disable_video_on_packetloss %s\n", RTPFORWARD_NAME, (session->disable_video_on_packetloss ? "TRUE" : "FALSE"));
 	}
 	
@@ -449,13 +449,13 @@ struct janus_plugin_result *rtpforward_handle_message(janus_plugin_session *hand
 	
 	json_t *video_enabled = json_object_get(body, "video_enabled");
 	if (video_enabled) {
-		session->video_enabled = (gboolean)json_boolean_value(video_enabled);
+		session->video_enabled = (gboolean)json_is_true(video_enabled);
 		JANUS_LOG(LOG_INFO, "%s session->video_enabled=%s\n", RTPFORWARD_NAME, session->video_enabled ? "TRUE" : "FALSE");
 	}
 	
 	json_t *audio_enabled = json_object_get(body, "audio_enabled");
 	if (audio_enabled) {
-		session->audio_enabled = (gboolean)json_boolean_value(audio_enabled);
+		session->audio_enabled = (gboolean)json_is_true(audio_enabled);
 		JANUS_LOG(LOG_INFO, "%s session->audio_enabled=%s\n", RTPFORWARD_NAME, session->audio_enabled ? "TRUE" : "FALSE");
 	}
 	
