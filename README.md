@@ -1,6 +1,6 @@
 # Janus rtpforward plugin
 
-This plugin for the [Janus WebRTC gateway](https://github.com/meetecho/janus-gateway) (tested with revision dc81819 [2017-12-04]) takes RTP and RTCP packets from a WebRTC connection (Janus Session) and forwards/sends them to UDP ports for further processing or display by an external receiver/decoder (e.g. a GStreamer pipeline).
+This plugin for the [Janus WebRTC gateway](https://github.com/meetecho/janus-gateway) (tested with 0.4.0, revision 673ac3fdc2c683c5 [2018-04-23]) takes RTP and RTCP packets from a WebRTC connection (Janus Session) and forwards/sends them to UDP ports for further processing or display by an external receiver/decoder (e.g. a GStreamer pipeline).
 
 Four destination UDP addresses/ports are used:
  
