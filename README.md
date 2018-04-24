@@ -91,7 +91,7 @@ Note: The following two use cases use the UDP multicast IP address 225.0.0.37. T
 
 ## GStreamer display
 
-The following example GStreamer pipeline will output the WebRTC audio and video emitted by this plugin (if the port numbers, the payload numbers, and encoding names match). The payload numbers are negotiated dynamically in the SDP exchange, and may differ from browser to browser, and even from session to session. You need to inspect each SDP exchange to find them on a per-session basis. Such a pipeline is thus best launched programmatically.
+The following example GStreamer pipeline will output the WebRTC audio and video emitted by this plugin (if the port numbers and encoding names match).
 
 You probably also need to send a PLI to the browser to request a keyframe if the GStreamer pipeline is launched mid-stream. The following pipeline will start running only after a keyframe has been received.
 
@@ -102,9 +102,9 @@ Note that you can lauch the same pipeline several times when you're multicasting
 ````shell
 gst-launch-1.0 -v \
 rtpbin name=rtpbin latency=100 \
-udpsrc address=225.0.0.37 auto-multicast=true multicast-iface=lo port=60000 caps="application/x-rtp, media=audio, payload=111, encoding-name=OPUS, clock-rate=48000" ! rtpbin.recv_rtp_sink_0 \
+udpsrc address=225.0.0.37 auto-multicast=true multicast-iface=lo port=60000 caps="application/x-rtp, media=audio, encoding-name=OPUS, clock-rate=48000" ! rtpbin.recv_rtp_sink_0 \
 udpsrc address=225.0.0.37 auto-multicast=true multicast-iface=lo port=60001 caps="application/x-rtcp" ! rtpbin.recv_rtcp_sink_0 \
-udpsrc address=225.0.0.37 auto-multicast=true multicast-iface=lo port=60002 caps="application/x-rtp, media=video, payload=96, encoding-name=VP8, clock-rate=90000" ! rtpbin.recv_rtp_sink_1 \
+udpsrc address=225.0.0.37 auto-multicast=true multicast-iface=lo port=60002 caps="application/x-rtp, media=video, encoding-name=VP8, clock-rate=90000" ! rtpbin.recv_rtp_sink_1 \
 udpsrc address=225.0.0.37 auto-multicast=true multicast-iface=lo port=60003 caps="application/x-rtcp" ! rtpbin.recv_rtcp_sink_1 \
 rtpbin. ! rtpvp8depay ! vp8dec ! autovideosink \
 rtpbin. ! rtpopusdepay ! queue ! opusdec ! pulsesink
@@ -120,9 +120,9 @@ The following GStreamer pipeline simply dumps the synchronized (by `rtpbin`) and
 gst-launch-1.0 -v -e \
 matroskamux name=mux streamable=1 ! filesink location=/tmp/dump.mkv \
 rtpbin name=rtpbin latency=100 \
-udpsrc address=225.0.0.37 auto-multicast=true multicast-iface=lo port=60000 caps="application/x-rtp, media=audio, payload=111, encoding-name=OPUS, clock-rate=48000" ! rtpbin.recv_rtp_sink_0 \
+udpsrc address=225.0.0.37 auto-multicast=true multicast-iface=lo port=60000 caps="application/x-rtp, media=audio, encoding-name=OPUS, clock-rate=48000" ! rtpbin.recv_rtp_sink_0 \
 udpsrc address=225.0.0.37 auto-multicast=true multicast-iface=lo port=60001 caps="application/x-rtcp" ! rtpbin.recv_rtcp_sink_0 \
-udpsrc address=225.0.0.37 auto-multicast=true multicast-iface=lo port=60002 caps="application/x-rtp, media=video, payload=96, encoding-name=VP8, clock-rate=90000" ! rtpbin.recv_rtp_sink_1 \
+udpsrc address=225.0.0.37 auto-multicast=true multicast-iface=lo port=60002 caps="application/x-rtp, media=video, encoding-name=VP8, clock-rate=90000" ! rtpbin.recv_rtp_sink_1 \
 udpsrc address=225.0.0.37 auto-multicast=true multicast-iface=lo port=60003 caps="application/x-rtcp" ! rtpbin.recv_rtcp_sink_1 \
 rtpbin. ! rtpopusdepay ! mux.audio_0 \
 rtpbin. ! rtpvp8depay ! mux.video_0
