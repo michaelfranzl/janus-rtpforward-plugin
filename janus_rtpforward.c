@@ -29,7 +29,7 @@
 #include "utils.h"
 
 #define RTPFORWARD_VERSION 1
-#define RTPFORWARD_VERSION_STRING	"0.4.0" // convention: always matching Janus version
+#define RTPFORWARD_VERSION_STRING	"0.4.0"
 #define RTPFORWARD_DESCRIPTION "Forwards RTP and RTCP to an external UDP receiver/decoder"
 #define RTPFORWARD_NAME "rtpforward"
 #define RTPFORWARD_AUTHOR	"Michael Karl Franzl"
@@ -831,6 +831,8 @@ static void *rtpforward_handler_thread(void *data) {
 			janus_sdp_destroy(offer);
 			
 			const char *negotiated_acodec, *negotiated_vcodec;
+			negotiated_acodec = NULL;
+			negotiated_vcodec = NULL;
 			
 			janus_sdp_find_first_codecs(answer, &negotiated_acodec, &negotiated_vcodec);
 			
