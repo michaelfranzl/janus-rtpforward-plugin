@@ -29,7 +29,7 @@
 #include "utils.h"
 
 #define RTPFORWARD_VERSION 1
-#define RTPFORWARD_VERSION_STRING	"0.4.1"
+#define RTPFORWARD_VERSION_STRING	"0.4.1.1"
 #define RTPFORWARD_DESCRIPTION "Forwards RTP and RTCP to an external UDP receiver/decoder"
 #define RTPFORWARD_NAME "rtpforward"
 #define RTPFORWARD_AUTHOR	"Michael Karl Franzl"
@@ -122,6 +122,7 @@ typedef struct rtpforward_session {
 	guint16 sendport_audio_rtp;
 	guint16 sendport_audio_rtcp;
 	guint16 seqnr_video_last; // to keep track of lost packets
+	guint16 seqnr_audio_last; // to keep track of lost packets
 	guint16 drop_permille;
 	guint16 drop_video_packets;
 	guint16 drop_audio_packets;
@@ -306,6 +307,7 @@ void rtpforward_create_session(janus_plugin_session *handle, int *error) {
 	session->disable_video_on_packetloss = FALSE;
 	
 	session->seqnr_video_last = 0;
+	session->seqnr_audio_last = 0;
 	
 	session->fir_seqnr = 0;
 	
@@ -648,6 +650,9 @@ void rtpforward_incoming_rtp(janus_plugin_session *handle, int video, char *buf,
 	if (session->drop_permille > g_random_int_range(0,1000))
 		return; // simulate bad connection
 	
+	janus_rtp_header *header = (janus_rtp_header *)buf;
+	guint16 seqn_current = ntohs(header->seq_number);
+	
 	if (video) { // VIDEO
 		
 		if (session->drop_video_packets > 0) {
@@ -655,20 +660,17 @@ void rtpforward_incoming_rtp(janus_plugin_session *handle, int video, char *buf,
 			return;
 		}
 		
-		janus_rtp_header *header = (janus_rtp_header *)buf;
-		guint16 seqn_current = ntohs(header->seq_number);
 		guint16 seqnr_last = session->seqnr_video_last;
-		
 		guint16 missed = seqn_current - seqnr_last - (guint16)1;
 		if (
 			!seqnr_last || // first packet
-			seqn_current < seqnr_last // guint16 has wrapped
+			seqn_current < seqnr_last // guint16 has wrapped (TODO: this also ignores packet misordering)
 		) {
 			missed = 0;
 		}
 			
 		if (missed) {
-			JANUS_LOG(LOG_WARN, "%s Missed %d packets before sequence number %d\n", RTPFORWARD_NAME, missed, seqn_current);
+			JANUS_LOG(LOG_WARN, "%s Missed %d video packets before sequence number %d\n", RTPFORWARD_NAME, missed, seqn_current);
 			
 			// We have missed at least one packet.
 			// Some downstream decoders could be sensitive to packet loss.
@@ -712,6 +714,22 @@ void rtpforward_incoming_rtp(janus_plugin_session *handle, int video, char *buf,
 			session->drop_audio_packets--;
 			return;
 		}
+		
+		guint16 seqnr_last = session->seqnr_audio_last;
+		guint16 missed = seqn_current - seqnr_last - (guint16)1;
+		if (
+			!seqnr_last || // first packet
+			seqn_current < seqnr_last // guint16 has wrapped (TODO: this also ignores packet misordering)
+		) {
+			missed = 0;
+		}
+			
+		if (missed) {
+			JANUS_LOG(LOG_WARN, "%s Missed %d audio packets before sequence number %d\n", RTPFORWARD_NAME, missed, seqn_current);
+		}
+		
+		session->seqnr_audio_last = seqn_current;
+		
 		if (!session->audio_enabled)
 			return;
 		
