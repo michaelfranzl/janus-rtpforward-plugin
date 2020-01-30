@@ -1,9 +1,15 @@
 # Janus rtpforward plugin
 
-This plugin for the [Janus WebRTC gateway](https://github.com/meetecho/janus-gateway) (tested with 0.4.0, revision 673ac3fdc2c683c5 [2018-04-23]) takes RTP and RTCP packets from a WebRTC connection (Janus Session) and forwards/sends them to UDP ports for further processing or display by an external receiver/decoder (e.g. a GStreamer pipeline).
+This plugin for the [Janus WebRTC gateway](https://github.com/meetecho/janus-gateway) takes RTP and RTCP packets from a WebRTC connection (Janus session) and forwards/sends them to UDP ports for further processing or display by an external receiver/decoder (e.g. a GStreamer pipeline).
+
+This plugin was developed and manually tested for the following Janus versions:
+
+* 0.4.0
+* 0.7.4
+* 0.8.1
 
 Four destination UDP addresses/ports are used:
- 
+
 1. Audio RTP
 2. Audio RTCP
 3. Video RTP
@@ -11,7 +17,7 @@ Four destination UDP addresses/ports are used:
 
 ## API
 
-There are no configuration files. All ports/addresses can be configured via the plugin API on a per-session basis. To configure a plugin session, send the following payload (before sending the JSEP offer):
+There are no configuration files. All ports/addresses can be configured via the plugin API on a per-session basis. To configure a plugin session, send the following payload before sending media (e.g. before sending the JSEP offer):
 
 		"request": "configure",
 		"sendipv4": "127.0.0.1",
@@ -22,22 +28,22 @@ There are no configuration files. All ports/addresses can be configured via the 
 		"negotiate_acodec": "opus",
 		"negotiate_vcodec": "vp8"
 
-All `send*` keys are required and specify the target UDP ports/addresses. This plugin simply uses the `sendto()` system call. For now, only an IPv4 target address is supported.
+All `send*` keys are required and specify the target UDP ports/addresses. This plugin simply uses the `SEND(2)` (`sendto()`) system call. For now, only an IPv4 target address is supported.
 
 The `negotiate*` keys are optional and specify which codecs should be negotiated by Janus (and returned in the JSEP answer). The defaults are `"opus"` and `"vp8"`.
 
 ## Browser requests
 
 To send to the browser a Picture Loss Indication packet (PLI), send the following payload:
-		
+
 		"request": "pli"
-		
+
 To send to the browser a Full Intraframe request packet (FIR), send the following payload:
-		
+
 		"request": "fir"
-		
-To send to the browser a Receiver Estimated Maximum Bitrate packet (REMB), send the following payload. Note that depending on the video codec used, different browsers cannot go lower than 30 to 200 kbits/sec.
-		
+
+To send to the browser a Receiver Estimated Maximum Bitrate packet (REMB), send the following payload:
+
 		"request": "remb",
 		"bitrate": <integer in bits per second>
 
@@ -166,7 +172,6 @@ videortpmap = VP8/90000
 
 Thanks go to the authors of [janus-gateway](https://github.com/meetecho/janus-gateway) and mquander for the excellent "Simplest possible plugin for Janus" ([janus-helloworld-plugin](https://github.com/mquander/janus-helloworld-plugin)).
 
-
 # Compiling and installing
 
 ````shell
@@ -175,3 +180,7 @@ Thanks go to the authors of [janus-gateway](https://github.com/meetecho/janus-ga
 make
 make install  # installs into {prefix}/lib/janus/plugins
 ````
+
+# Demo
+
+See the [demo](demo).
