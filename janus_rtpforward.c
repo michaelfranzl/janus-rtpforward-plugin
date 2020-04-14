@@ -29,7 +29,7 @@
 #include "utils.h"
 
 #define RTPFORWARD_VERSION 1
-#define RTPFORWARD_VERSION_STRING	"0.4.1.1"
+#define RTPFORWARD_VERSION_STRING	"0.9.2"
 #define RTPFORWARD_DESCRIPTION "Forwards RTP and RTCP to an external UDP receiver/decoder"
 #define RTPFORWARD_NAME "rtpforward"
 #define RTPFORWARD_AUTHOR	"Michael Karl Franzl"
@@ -48,9 +48,9 @@ const char *rtpforward_get_package(void);
 void rtpforward_create_session(janus_plugin_session *handle, int *error);
 struct janus_plugin_result *rtpforward_handle_message(janus_plugin_session *handle, char *transaction, json_t *message, json_t *jsep);
 void rtpforward_setup_media(janus_plugin_session *handle);
-void rtpforward_incoming_rtp(janus_plugin_session *handle, int video, char *buf, int len);
-void rtpforward_incoming_rtcp(janus_plugin_session *handle, int video, char *buf, int len);
-void rtpforward_incoming_data(janus_plugin_session *handle, char *buf, int len);
+void rtpforward_incoming_rtp(janus_plugin_session *handle, janus_plugin_rtp *packet);
+void rtpforward_incoming_rtcp(janus_plugin_session *handle, janus_plugin_rtcp *packet);
+void rtpforward_incoming_data(janus_plugin_session *handle, janus_plugin_data *packet);
 void rtpforward_slow_link(janus_plugin_session *handle, int uplink, int video);
 void rtpforward_hangup_media(janus_plugin_session *handle);
 void rtpforward_destroy_session(janus_plugin_session *handle, int *error);
@@ -558,17 +558,12 @@ struct janus_plugin_result *rtpforward_handle_message(janus_plugin_session *hand
 			goto respond;
 			
 		} else if (!strcmp(request_text, "pli")) {
-			char buf[12];
-			janus_rtcp_pli((char *)&buf, 12);
-			gateway->relay_rtcp(session->handle, 1, buf, 12);
+			gateway->send_pli(session->handle);
 			response = json_object();
 			goto respond;
 			
 		} else if (!strcmp(request_text, "fir")) {
-			char buf[20];
-			// TODO: I don't understand session->fir_seqr yet.
-			janus_rtcp_fir((char *)&buf, 20, &session->fir_seqnr);
-			gateway->relay_rtcp(session->handle, 1, buf, 20);
+			gateway->send_pli(session->handle);
 			response = json_object();
 			goto respond;
 			
@@ -576,9 +571,7 @@ struct janus_plugin_result *rtpforward_handle_message(janus_plugin_session *hand
 		} else if (!strcmp(request_text, "remb")) {
 			uint32_t bitrate = (uint32_t)json_integer_value(json_object_get(body, "bitrate"));
 			if (bitrate) {
-				char buf[32]; // more than needed
-				int remblen = janus_rtcp_remb_ssrcs((char *)(&buf), sizeof(buf), bitrate, 1);
-				gateway->relay_rtcp(session->handle, 1, buf, remblen);
+				gateway->send_remb(session->handle, bitrate ? bitrate : 10000000);
 				
 				response = json_object();
 			} else {
@@ -639,7 +632,7 @@ void rtpforward_setup_media(janus_plugin_session *handle) {
 	JANUS_LOG(LOG_INFO, "%s WebRTC media is now available.\n", RTPFORWARD_NAME);
 }
 
-void rtpforward_incoming_rtp(janus_plugin_session *handle, int video, char *buf, int len) {
+void rtpforward_incoming_rtp(janus_plugin_session *handle, janus_plugin_rtp *packet) {
 	rtpforward_session *session = (rtpforward_session *)handle->plugin_handle; // simple and fast. echotest does the same.
 	
 	if (session->sendsockfd < 0) return; // not yet configured: skip if no socket open
@@ -650,10 +643,10 @@ void rtpforward_incoming_rtp(janus_plugin_session *handle, int video, char *buf,
 	if (session->drop_permille > g_random_int_range(0,1000))
 		return; // simulate bad connection
 	
-	janus_rtp_header *header = (janus_rtp_header *)buf;
+	janus_rtp_header *header = (janus_rtp_header *)packet->buffer;
 	guint16 seqn_current = ntohs(header->seq_number);
 	
-	if (video) { // VIDEO
+	if (packet->video) { // VIDEO
 		
 		if (session->drop_video_packets > 0) {
 			session->drop_video_packets--;
@@ -685,7 +678,7 @@ void rtpforward_incoming_rtp(janus_plugin_session *handle, int video, char *buf,
 		// Detect keyframes and maybe re-enable video.
 		gboolean is_keyframe;
 		int plen = 0;
-		char *payload = janus_rtp_payload(buf, len, &plen);
+		char *payload = janus_rtp_payload(packet->buffer, packet->length, &plen);
 		if (session->vcodec == CODEC_VP8) {
 			is_keyframe = janus_vp8_is_keyframe(payload, plen);
 		} else if (session->vcodec == CODEC_VP9) {
@@ -737,27 +730,27 @@ void rtpforward_incoming_rtp(janus_plugin_session *handle, int video, char *buf,
 	}
 	
 	// forward to the selected UDP port
-	int numsent = sendto(session->sendsockfd, buf, len, 0, (struct sockaddr*)&addr, addrlen);
+	int numsent = sendto(session->sendsockfd, packet->buffer, packet->length, 0, (struct sockaddr*)&addr, addrlen);
 }
 
-void rtpforward_incoming_rtcp(janus_plugin_session *handle, int video, char *buf, int len) {
+void rtpforward_incoming_rtcp(janus_plugin_session *handle, janus_plugin_rtcp *packet) {
 	rtpforward_session *session = (rtpforward_session *)handle->plugin_handle;
 	if (session->sendsockfd < 0) return;
 	struct sockaddr_in addr = session->sendsockaddr;
 	socklen_t addrlen = sizeof(struct sockaddr_in);
 
-	if (video) {
+	if (packet->video) {
 		addr.sin_port = htons(session->sendport_video_rtcp);
 	} else {
 		addr.sin_port = htons(session->sendport_audio_rtcp);
 	}
 	
 	// forward to the selected UDP port
-	int numsent = sendto(session->sendsockfd, buf, len, 0, (struct sockaddr*)&addr, addrlen);
+	int numsent = sendto(session->sendsockfd, packet->buffer, packet->length, 0, (struct sockaddr*)&addr, addrlen);
 }
 
-void rtpforward_incoming_data(janus_plugin_session *handle, char *buf, int len) {
-	JANUS_LOG(LOG_INFO, "%s Got a DataChannel message (%d bytes.)\n", RTPFORWARD_NAME, len);
+void rtpforward_incoming_data(janus_plugin_session *handle, janus_plugin_data *packet) {
+	JANUS_LOG(LOG_INFO, "%s Got a DataChannel message (%d bytes.)\n", RTPFORWARD_NAME, packet->length);
 }
 
 void rtpforward_slow_link(janus_plugin_session *handle, int uplink, int video) {
