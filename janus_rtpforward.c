@@ -1,6 +1,6 @@
 /*! \file   janus_rtpforward.c
  * 
- * \author Michael Karl Franzl <office@michaelfranzl.com>
+ * \author Michael Karl Franzl
  * 
  * \copyright GNU General Public License v3
  * 
