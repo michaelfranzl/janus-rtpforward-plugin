@@ -2,7 +2,12 @@
 
 A minimal working example of a browser frontend interfacing with the rtpforward plugin for Janus.
 
+
 ## How to run
+
+The quick way: Run the demo virtual machine [vagrant_janus-rtpforward-plugin_demo](https://github.com/michaelfranzl/vagrant_janus-rtpforward-plugin_demo).
+
+Alternatively, you can do all of the following steps manually:
 
 Preconditions:
 
@@ -12,7 +17,7 @@ Preconditions:
 4. The websocket server of Janus listens at ws://localhost:8188
 5. Your browser supports ES8 Javascript and Import Maps. At the time of writing, only Chrome version 74 has experimental support for Import Maps. Until Import Maps are enabled by default, enable "Experimental Web Platform features" under `chrome://flags`.
 
-In this directory:
+In this (`demo`) sub-directory, run:
 
     npm ci
     npm install -g jspm@2.0.0-beta.7
