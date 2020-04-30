@@ -2,11 +2,7 @@
 
 This plugin for the [Janus WebRTC gateway](https://github.com/meetecho/janus-gateway) takes RTP and RTCP packets from a WebRTC connection (Janus session) and forwards/sends them to UDP ports for further processing or display by an external receiver/decoder (e.g. a GStreamer pipeline).
 
-This plugin was developed and manually tested for the following Janus versions:
-
-* 0.4.0
-* 0.7.4
-* 0.8.1
+`janus-rtpforward-plugin` release versions (tags) match `janus-gateway` release versions (tags). **Please make sure to check out the matching tags before compiling the plugin against the backend.**
 
 Four destination UDP addresses/ports are used:
 
@@ -14,6 +10,33 @@ Four destination UDP addresses/ports are used:
 2. Audio RTCP
 3. Video RTP
 4. Video RTCP
+
+
+## Differences to the 'videoroom' plugin
+
+The 'videoroom' plugin which is shipped with `janus-gateway` supports forwarding of RTP packets *as well*. However, the main purpose of `janus-rtpforward-plugin` is just the RTP forwarding, whereas the main purpose of the 'videoroom' plugin [is](https://github.com/meetecho/janus-gateway/blob/v0.9.2/plugins/janus_videoroom.c#L651) "getting media from WebRTC sources and relaying it to WebRTC destinations".
+
+A non-exhaustive list of current differences:
+
+| Feature          |  videoroom plugin | janus-rtpforward-plugin |
+| ---------------- | ----------------- | ----------------------- |
+| FIR/PLI packet   | automatic         | API                     |
+| REMB packet      | automatic         | API                     |
+| Lines of code    | ~7k               | ~1k                     |
+| IP               | v4, v6,           | v4                      |
+| UDP broadcasting | yes               | yes, TTL=0 on loopback  |
+
+Features of the RTP forwarding part of the 'videoroom' plugin which are not in `janus-rtpforward-plugin`:
+
+* SRTP
+* simulcasting
+
+Features in `janus-rtpforward-plugin` which are not in the RTP forwarding part of the 'videoroom' plugin:
+
+* automatically stop forwarding video on the first skipped video packet to protect downstream video decoders,
+  then automatically re-start video on the next keyframe.
+* Packet loss simulation for direct testing of downstream video decoders
+
 
 ## API
 
