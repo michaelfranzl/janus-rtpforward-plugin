@@ -7,7 +7,7 @@ A minimal working example of a browser frontend interfacing with the rtpforward 
 Preconditions:
 
 1. The echotest demo (browser app) shipped with Janus works.
-2. Compile and install the rtpforward plugin for Janus.
+2. Compile and install `janus-rtpforward-plugin` (see [README.md](../README.md)).
 3. Janus listens at `localhost` or somewhere in your LAN with all open UDP ports so that there is no need for STUN/TURN servers.
 4. The websocket server of Janus listens at ws://localhost:8188
 5. Your browser supports ES8 Javascript and Import Maps. At the time of writing, only Chrome version 74 has experimental support for Import Maps. Until Import Maps are enabled by default, enable "Experimental Web Platform features" under `chrome://flags`.
