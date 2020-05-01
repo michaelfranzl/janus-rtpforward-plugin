@@ -1,11 +1,58 @@
 {
   "resolve": {
     "@jspm/core": "npm:@jspm/core@1.1.1",
+    "minnie-janus": "npm:minnie-janus@0.9.3",
     "webrtc-adapter": "npm:webrtc-adapter@7.5.1"
   },
   "dependencies": {
     "npm:@jspm/core@1.1.1": {
       "source": "https://registry.npmjs.org/@jspm/core/-/core-1.1.1.tgz#sha512-5JjuDSzcxuxgzJ/+ynA7bcqZkI9CdDBERXOnDGdhphxNfmd4PkNl0RDE4hUH0+n8yEaz08Tdmjgxe7tlX3LmRA=="
+    },
+    "npm:@michaelfranzl/captain-hook@2.0.0": {
+      "source": "https://registry.npmjs.org/@michaelfranzl/captain-hook/-/captain-hook-2.0.0.tgz#sha512-Y/nXAXGOROUDm6q6BO5cLaVHBi0HhG6U7KWPQmTV2C8grdY5BZLtWUF9a6yJ/5CkxXr9f8QAD4U12gs9O2RfGQ=="
+    },
+    "npm:@stamp/compose@1.0.2": {
+      "source": "https://registry.npmjs.org/@stamp/compose/-/compose-1.0.2.tgz#sha512-TW1/jTGesxfkFRZUNTgQ9r4Ln6YaIArZmi836o21szc8z+gxrIWrYAtI4r9LfxeD9tnTymAjB1TtvJ19OYFo3Q==",
+      "resolve": {
+        "@stamp/core": "npm:@stamp/core@1.0.1",
+        "@stamp/is": "npm:@stamp/is@1.0.0"
+      }
+    },
+    "npm:@stamp/core@1.0.1": {
+      "source": "https://registry.npmjs.org/@stamp/core/-/core-1.0.1.tgz#sha512-oZMdU17ZgUJOHHtHXXTb4afmGKpH2kNFfXYpkd3Scs3U+1ygyqFQrpzo/F2qrnEHJOXfvBafyvA/2u4Pdm+R9g==",
+      "resolve": {
+        "@stamp/is": "npm:@stamp/is@1.0.0"
+      }
+    },
+    "npm:@stamp/is@1.0.0": {
+      "source": "https://registry.npmjs.org/@stamp/is/-/is-1.0.0.tgz#edf031a3b43ee1f07e7b74bfbd837c82980eb25a"
+    },
+    "npm:@stamp/it@1.1.0": {
+      "source": "https://registry.npmjs.org/@stamp/it/-/it-1.1.0.tgz#sha512-xhNHGQwPwSPm96yHpkU7DGWiKfiqhZueOvqpv8P6U0eWRVgz3bbthf9nGqjyynUmQC8S7Qekfp6IWniPHwivbg==",
+      "resolve": {
+        "@stamp/core": "npm:@stamp/core@1.0.1",
+        "@stamp/shortcut": "npm:@stamp/shortcut@1.0.2",
+        "@stamp/is": "npm:@stamp/is@1.0.0",
+        "@stamp/compose": "npm:@stamp/compose@1.0.2"
+      }
+    },
+    "npm:@stamp/shortcut@1.0.2": {
+      "source": "https://registry.npmjs.org/@stamp/shortcut/-/shortcut-1.0.2.tgz#sha512-waC10TO4rK/nG3YX717nqQVyVkjaH3f8bu/H0vvtCZJo8805aI5WHTefQei3G5A3vdq3nt8TDfCBqfyWXZZFSg==",
+      "resolve": {
+        "@stamp/compose": "npm:@stamp/compose@1.0.2"
+      }
+    },
+    "npm:loglevel@1.6.8": {
+      "source": "https://registry.npmjs.org/loglevel/-/loglevel-1.6.8.tgz#sha512-bsU7+gc9AJ2SqpzxwU3+1fedl8zAntbtC5XYlt3s2j1hJcn2PsXSmgN8TaLG/J1/2mod4+cE/3vNL70/c1RNCA=="
+    },
+    "npm:minnie-janus@0.9.3": {
+      "source": "https://registry.npmjs.org/minnie-janus/-/minnie-janus-0.9.3.tgz#sha512-S1f5zAXJGSdSsxVqtq0SN4L3LStUx1KGQXJB29pvvTCGwvWWONa9GIIFh8znG8EHSvfVB9xqOT4QLXSw6R331Q==",
+      "resolve": {
+        "webrtc-adapter": "npm:webrtc-adapter@7.5.1",
+        "loglevel": "npm:loglevel@1.6.8",
+        "@michaelfranzl/captain-hook": "npm:@michaelfranzl/captain-hook@2.0.0",
+        "@stamp/it": "npm:@stamp/it@1.1.0"
+      }
     },
     "npm:rtcpeerconnection-shim@1.2.15": {
       "source": "https://registry.npmjs.org/rtcpeerconnection-shim/-/rtcpeerconnection-shim-1.2.15.tgz#sha512-C6DxhXt7bssQ1nHb154lqeL0SXz5Dx4RczXZu2Aa/L1NJFnEVDxFwCBo3fqtuljhHIGceg5JKBV4XJ0gW5JKyw==",
