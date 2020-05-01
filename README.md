@@ -2,8 +2,6 @@
 
 This plugin for the [Janus WebRTC gateway](https://github.com/meetecho/janus-gateway) takes RTP and RTCP packets from a WebRTC connection (Janus session) and forwards/sends them to UDP ports for further processing or display by an external receiver/decoder (e.g. a GStreamer pipeline).
 
-`janus-rtpforward-plugin` release versions (tags) match `janus-gateway` release versions (tags). **Please make sure to check out the matching tags before compiling the plugin against the backend.**
-
 Four destination UDP addresses/ports are used:
 
 1. Audio RTP
@@ -12,11 +10,27 @@ Four destination UDP addresses/ports are used:
 4. Video RTCP
 
 
+## Compiling and installing
+
+`janus-rtpforward-plugin` release versions (tags) match `janus-gateway` release versions (tags). **Please make sure to check out the matching tags before compiling the plugin against the backend.**
+
+````shell
+./bootstrap
+./configure --prefix=/opt/janus  # or wherever your janus install lives
+make
+make install  # installs into {prefix}/lib/janus/plugins
+````
+
+
+## Demo
+
+See the [demo](demo).
+
 ## Differences to the 'videoroom' plugin
 
 The 'videoroom' plugin which is shipped with `janus-gateway` supports forwarding of RTP packets *as well*. However, the main purpose of `janus-rtpforward-plugin` is just the RTP forwarding, whereas the main purpose of the 'videoroom' plugin [is](https://github.com/meetecho/janus-gateway/blob/v0.9.2/plugins/janus_videoroom.c#L651) "getting media from WebRTC sources and relaying it to WebRTC destinations".
 
-A non-exhaustive list of current differences:
+A (quickly researched) non-exhaustive list of current differences:
 
 | Feature          |  videoroom plugin | janus-rtpforward-plugin |
 | ---------------- | ----------------- | ----------------------- |
@@ -106,19 +120,18 @@ To experiment how a downstream RTP/RTCP receiver can tolerate packet loss, there
 These packet loss simulations are very simple and do not reflect real networks, but they may be useful for debugging. Note that when dropping packets this way, the `disable_video_on_packetloss` feature (see above) triggers normally.
 
 
-
-# UDP broadcast/multicast
+### UDP broadcast/multicast
 
 UDP broadcast and multicast is implicitly supported by configuring the `sendipv4` to broadcast or multicast IP addresses (strictly speaking, this is just a feature of the socket or OS, not a feature of this plugin). If a multicast IP address is detected, as a security precaution, the plugin will set the `IP_MULTICAST_TTL` option of the sending socket to 0 (zero) which SHOULD cause at least the first router (the Linux kernel) to NOT forward the UDP packets to any other network (the packets SHOULD be accessible only on the same machine). This behavior is however OS-specific. **When configuring a multicast IP address, you SHOULD verify that the UDP packets are not inadvertenly forwarded into networks where the security/privacy of the packets could be compromised, or into networks where congestion or bandwidth need to be observed. In the worst case, the UDP packets could be forwarded to large sections of the internet. As a last resort, you should configure your firewall to drop the packets. If in doubt, do NOT configure this plugin with multicast IP addresses! It is safest to simply use 127.0.0.1.**
 
 In addition, if a multicast IP address is detected, the plugin will set the network interface to be used to the software loopback interface (via the `INADDR_LOOPBACK` constant, which should be "127.0.0.1") for lowest latency. If we don't do this, then the OS may choose a network interface for us, and a physical ethernet card could add latency. UDP multicast receivers may have to set the interface to the same (in below GStreamer examples, this is achieved via the `multicast-iface=lo` option to `udpsrc`).
 
 
-# Use cases
+## Use cases
 
 Note: The following two use cases use the UDP multicast IP address 225.0.0.37. This enables multiple subscribers to the same RTP stream, for maximum flexibility.
 
-## GStreamer display
+### GStreamer display
 
 The following example GStreamer pipeline will output the WebRTC audio and video emitted by this plugin (if the port numbers and encoding names match).
 
@@ -140,7 +153,7 @@ rtpbin. ! rtpopusdepay ! queue ! opusdec ! pulsesink
 ````
 
 
-## GStreamer dumping to file
+### GStreamer dumping to file
 
 The following GStreamer pipeline simply dumps the synchronized (by `rtpbin`) and already compressed media (by the client browser, conveniently!) into a Matroska container (note that the video will only start after a keyframe):
 
@@ -158,7 +171,7 @@ rtpbin. ! rtpvp8depay ! mux.video_0
 ````
 
 
-## Combining janus-rtpforward-plugin and janus-streaming-plugin
+### Combining janus-rtpforward-plugin and janus-streaming-plugin
 
 Combining this plugin with the janus-streaming plugin (supplied with Janus) allows a novel implementation of an echo test and opens up interesting possibilities for other use-cases. If you configure one rtpforward session like so...
 
@@ -191,19 +204,7 @@ videortpmap = VP8/90000
 ... then all subscribers to this mountpoint (id=1) will receive realtime A/V from the rtpforward session.
 
 
-# Acknowledgements
+## Acknowledgements
 
 Thanks go to the authors of [janus-gateway](https://github.com/meetecho/janus-gateway) and mquander for the excellent "Simplest possible plugin for Janus" ([janus-helloworld-plugin](https://github.com/mquander/janus-helloworld-plugin)).
 
-# Compiling and installing
-
-````shell
-./bootstrap
-./configure --prefix=/opt/janus  # or wherever your janus install lives
-make
-make install  # installs into {prefix}/lib/janus/plugins
-````
-
-# Demo
-
-See the [demo](demo).
