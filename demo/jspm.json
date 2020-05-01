@@ -1,0 +1,27 @@
+{
+  "resolve": {
+    "@jspm/core": "npm:@jspm/core@1.1.1",
+    "webrtc-adapter": "npm:webrtc-adapter@7.5.1"
+  },
+  "dependencies": {
+    "npm:@jspm/core@1.1.1": {
+      "source": "https://registry.npmjs.org/@jspm/core/-/core-1.1.1.tgz#sha512-5JjuDSzcxuxgzJ/+ynA7bcqZkI9CdDBERXOnDGdhphxNfmd4PkNl0RDE4hUH0+n8yEaz08Tdmjgxe7tlX3LmRA=="
+    },
+    "npm:rtcpeerconnection-shim@1.2.15": {
+      "source": "https://registry.npmjs.org/rtcpeerconnection-shim/-/rtcpeerconnection-shim-1.2.15.tgz#sha512-C6DxhXt7bssQ1nHb154lqeL0SXz5Dx4RczXZu2Aa/L1NJFnEVDxFwCBo3fqtuljhHIGceg5JKBV4XJ0gW5JKyw==",
+      "resolve": {
+        "sdp": "npm:sdp@2.12.0"
+      }
+    },
+    "npm:sdp@2.12.0": {
+      "source": "https://registry.npmjs.org/sdp/-/sdp-2.12.0.tgz#sha512-jhXqQAQVM+8Xj5EjJGVweuEzgtGWb3tmEEpl3CLP3cStInSbVHSg0QWOGQzNq8pSID4JkpeV2mPqlMDLrm0/Vw=="
+    },
+    "npm:webrtc-adapter@7.5.1": {
+      "source": "https://registry.npmjs.org/webrtc-adapter/-/webrtc-adapter-7.5.1.tgz#sha512-R5LkIR/APjODkstSXFOztOmINXQ0nqIGfUoKTtCzjyiDXHNgwhkqZ9vi8UzGyjfUBibuZ0ZzVyV10qtuLGW3CQ==",
+      "resolve": {
+        "rtcpeerconnection-shim": "npm:rtcpeerconnection-shim@1.2.15",
+        "sdp": "npm:sdp@2.12.0"
+      }
+    }
+  }
+}
