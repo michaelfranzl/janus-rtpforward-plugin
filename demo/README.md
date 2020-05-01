@@ -11,11 +11,13 @@ Alternatively, you can do all of the following steps manually:
 
 Preconditions:
 
-1. The echotest demo (browser app) shipped with Janus works.
-2. Compile and install `janus-rtpforward-plugin` (see [README.md](../README.md)).
-3. Janus listens at `localhost` or somewhere in your LAN with all open UDP ports so that there is no need for STUN/TURN servers.
-4. The websocket server of Janus listens at ws://localhost:8188
-5. Your browser supports ES8 Javascript and Import Maps. At the time of writing, only Chrome version 74 has experimental support for Import Maps. Until Import Maps are enabled by default, enable "Experimental Web Platform features" under `chrome://flags`.
+1. There should be no NAT or firewall between your host and Janus so that there is no need for STUN/TURN servers.
+2. The Websocket server of Janus listens at ws://localhost:8188 . If the URL is different, change
+   it in `demo/src/index.js`.
+3. The echotest demo (browser app) shipped with Janus works. This is to exclude potential problems
+   with `janus-gateway` itself.
+4. Compile and install `janus-rtpforward-plugin` (see [README.md](../README.md)).
+5. Use a fairly recent web browser (current Mozilla Firefox or Google Chrome works).
 
 In this (`demo`) sub-directory, run:
 
