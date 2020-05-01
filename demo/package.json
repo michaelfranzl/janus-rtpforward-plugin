@@ -2,6 +2,7 @@
   "name": "janus-rtpforward-plugin-browser-demo",
   "version": "1.0.0",
   "dependencies": {
+    "loglevel": "^1.6.8",
     "minnie-janus": "~0.9.3",
     "webrtc-adapter": "^7.5.1"
   },
