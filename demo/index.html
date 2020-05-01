@@ -1,17 +1,17 @@
 <html>
-  <script>
-    (async () => {
-      document.head.appendChild(Object.assign(document.createElement('script'), {
-        type: 'importmap',
-        innerHTML: await (await fetch('./importmap.json')).text()
-      }));
-      import('./src/index.js');
-    })();
-  </script>
-
   <head>
-    <!-- <script type="importmap" src="importmap.js"></script> --> <!-- External import maps are not yet supported. -->
+    <!-- This is the future but not yet supported by browsers -->
+    <!-- <script type="importmap" src="importmap.js"></script> -->
     <!-- <script type="module" src="index.js"></script> -->
+
+    <script type="systemjs-importmap" src="importmap.json"></script>
+    <script src="node_modules/systemjs/dist/system.js"></script>
+    <script src="node_modules/systemjs/dist/extras/transform.js"></script>
+    <script src="node_modules/systemjs-transform-babel/dist/babel-transform.js"></script>
+
+    <script>
+      System.import('./src/index.js');
+    </script>
   </head>
 
   <body>
