@@ -1,32 +1,19 @@
 {
   "name": "janus-rtpforward-plugin-browser-demo",
   "version": "1.0.0",
-  "dependencies": {
-    "loglevel": "^1.6.8",
-    "minnie-janus": "~0.9.3",
-    "webrtc-adapter": "^7.5.1"
-  },
-  "description": "A working example of Janus rtpforward plugin",
-  "devDependencies": {
-    "@jspm/core": "^1.1.1",
-    "eslint": "^6.8.0",
-    "eslint-config-airbnb-base": "^14.0.0",
-    "eslint-plugin-import": "^2.18.2",
-    "systemjs": "^6.3.1",
-    "systemjs-transform-babel": "~0.1.2"
-  },
+  "description": "A minimal example demonstrating how you can use the rtpforward plugin with janus-gateway.",
+  "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev": "vite"
   },
-  "author": "Michael Karl Franzl",
-  "license": "MIT",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/michaelfranzl/janus-rtpforward-plugin.git"
+  "author": "Michael Franzl",
+  "license": "AGPL-3.0-or-later",
+  "devDependencies": {
+    "vite": "^5.0.11"
   },
-  "keywords": [
-    "janus-gateway",
-    "webrtc"
-  ],
-  "type": "module"
+  "dependencies": {
+    "loglevel": "^1.8.1",
+    "minnie-janus": "^0.14.1",
+    "webrtc-adapter": "^8.2.3"
+  }
 }

@@ -14,17 +14,24 @@ Four destination UDP addresses/ports are used:
 
 `janus-rtpforward-plugin` release versions (tags) match `janus-gateway` release versions (tags). **Please make sure to check out the matching tags before compiling the plugin against the backend.**
 
-````shell
-./bootstrap
+```sh
+autoreconf --verbose --force --install
 ./configure --prefix=/opt/janus  # or wherever your janus install lives
 make
 make install  # installs into {prefix}/lib/janus/plugins
-````
+```
 
 
 ## Demo
 
 See the [demo](demo).
+
+
+## Licenses
+
+* The plugin is under GPL-3.0-or-later
+* The demo is licensed under AGPL-3.0-or-later
+
 
 ## Differences to the 'videoroom' plugin
 
@@ -141,7 +148,7 @@ Hardware clocks of low-end consumer audio and video electronics (e.g. USB webcam
 
 Note that you can lauch the same pipeline several times when you're multicasting.
 
-````shell
+```sh
 gst-launch-1.0 -v \
 rtpbin name=rtpbin latency=100 \
 udpsrc address=225.0.0.37 auto-multicast=true multicast-iface=lo port=60000 caps="application/x-rtp, media=audio, encoding-name=OPUS, clock-rate=48000" ! rtpbin.recv_rtp_sink_0 \
@@ -150,7 +157,7 @@ udpsrc address=225.0.0.37 auto-multicast=true multicast-iface=lo port=60002 caps
 udpsrc address=225.0.0.37 auto-multicast=true multicast-iface=lo port=60003 caps="application/x-rtcp" ! rtpbin.recv_rtcp_sink_1 \
 rtpbin. ! rtpvp8depay ! vp8dec ! autovideosink \
 rtpbin. ! rtpopusdepay ! queue ! opusdec ! pulsesink
-````
+```
 
 
 ### GStreamer dumping to file
@@ -158,7 +165,7 @@ rtpbin. ! rtpopusdepay ! queue ! opusdec ! pulsesink
 The following GStreamer pipeline simply dumps the synchronized (by `rtpbin`) and already compressed media (by the client browser, conveniently!) into a Matroska container (note that the video will only start after a keyframe):
 
 
-````shell
+```sh
 gst-launch-1.0 -v -e \
 matroskamux name=mux streamable=1 ! filesink location=/tmp/dump.mkv \
 rtpbin name=rtpbin latency=100 \
@@ -168,7 +175,7 @@ udpsrc address=225.0.0.37 auto-multicast=true multicast-iface=lo port=60002 caps
 udpsrc address=225.0.0.37 auto-multicast=true multicast-iface=lo port=60003 caps="application/x-rtcp" ! rtpbin.recv_rtcp_sink_1 \
 rtpbin. ! rtpopusdepay ! mux.audio_0 \
 rtpbin. ! rtpvp8depay ! mux.video_0
-````
+```
 
 
 ### Combining janus-rtpforward-plugin and janus-streaming-plugin
@@ -184,7 +191,7 @@ Combining this plugin with the janus-streaming plugin (supplied with Janus) allo
 
 ... and then configure the janus-streaming plugin like so (in its configuration file) ...
 
-````
+```
 [multicast-from-janus-rtpforward-plugin]
 type = rtp
 id = 1
@@ -199,7 +206,7 @@ videoport = 60002
 videomcast = 225.0.0.37
 videopt = 100
 videortpmap = VP8/90000
-````
+```
 
 ... then all subscribers to this mountpoint (id=1) will receive realtime A/V from the rtpforward session.
 
@@ -207,4 +214,3 @@ videortpmap = VP8/90000
 ## Acknowledgements
 
 Thanks go to the authors of [janus-gateway](https://github.com/meetecho/janus-gateway) and mquander for the excellent "Simplest possible plugin for Janus" ([janus-helloworld-plugin](https://github.com/mquander/janus-helloworld-plugin)).
-

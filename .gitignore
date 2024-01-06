@@ -1,9 +1,5 @@
 *.l[ao]
 
-.kdev4
-*.kdev4
-*swp
-
 # http://www.gnu.org/software/automake
 
 Makefile
